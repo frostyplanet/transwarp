@@ -6,13 +6,17 @@ import struct
 import pickle 
 import string
 import random
-from Crypto.Cipher import AES
+
+class PackError (Exception):
+    pass
 
 def myhash (s, key):
     _md5 = hashlib.md5 ()
     _md5.update (s + key)
     return _md5.hexdigest ()
 
+def head_len ():
+    return struct.calcsize ('!L')
 
 def pack_head (length):
     return struct.pack ('!L', length)
@@ -41,26 +45,27 @@ def auth (seed, _hash, keys):
     return None
 
 
-def fix_len (s, byte_len):
-    l = len (s)
-    if l < byte_len:
-        return  s + (byte_len - l) * 'x'
-    elif l > byte_len:
-        return key[0 : byte_len]
+class AuthData (object):
 
-class MyCryptor (object):
+    def __init__ (self, seed, _hash, r_host, r_port):
+        self.seed = seed
+        self._hash = _hash
+        self.r_host = r_host
+        self.r_port = r_port
 
-    def __init__ (self, key, iv, block_size):
-        self.byte_len = block_size / 8
-        self.key = fix_len (key, self.byte_len)
-        self.iv = fix_len (iv, self.byte_len)
-        self.cy_obj = AES.new (self.key, AES.MODE_CFB, self.iv)
+    def serialize (self):
+        return pickle.dumps ((self.seed, self._hash, self.r_host, self.r_port))
 
-    def encrpy (self, data):
-        return self.cy_obj.encrypt (data)
-
-    def decrypt (self, buf):
-        return self.cy_obj.decrypt (buf)
+    @classmethod
+    def deserialize (cls, buf):
+        data = None
+        try:
+            data = pickle.loads (buf)
+        except Exception, e:
+            raise PackError ("%s unpickle error %s" % (cls.__name__, str(e)))
+        if len (data) != 4:
+            raise PackError ("%s format error" % (cls.__name__))
+        return cls (data[0], data[1], data[2], data[3])
 
 
 
@@ -71,15 +76,6 @@ if __name__ == '__main__':
     key = "sdfs98ulkdf"
     seed, _hash = gen_auth_data (key)
     print seed, _hash
-    assert auth (seed, _hash, [key, "sssss"])
-    arr = [random_string (8), random_string (35), random_string (133)]
-    aes_key = "dsf343242"
-    c1 = MyCryptor (aes_key, "aaa", 128)
-    c2 = MyCryptor (aes_key, "aaa", 128)
-    for i in arr:
-        b1 = c1.encrpy (i)
-        b2 = c2.decrypt (b1)
-        assert i == b2
-
+    assert key == auth (seed, _hash, [key, "sssss"])
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4 :
