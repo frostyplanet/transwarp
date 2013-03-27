@@ -8,7 +8,7 @@ log_backup_count = 3
 log_level = "DEBUG"
 # for log.py
 
-SERVER_ADDR = ("127.0.0.1", 39231)
+SERVER_ADDR = ("127.0.0.1", 23000)
 SOCK5_ADDR = ("127.0.0.1", 9000)
 
 KEY = "sdfsdr9798798"

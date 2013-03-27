@@ -67,7 +67,52 @@ class AuthData (object):
             raise PackError ("%s format error" % (cls.__name__))
         return cls (data[0], data[1], data[2], data[3])
 
+class ServerResponse (object):
 
+    def __init__ (self, err_no, message):
+        """ when err_no == 0 means no error """
+        self.err_no = err_no
+        self.message = message
+
+    def serialize (self):
+        return pickle.dumps((self.err_no, self.message))
+
+    @classmethod
+    def deserialize (cls, buf):
+        data = None
+        try:
+            data = pickle.loads (buf)
+        except Exception, e:
+            raise PackError ("%s unpickle error %s" % (cls.__name__, str(e)))
+        if len (data) != 2:
+            raise PackError ("%s format error" % (cls.__name__))
+        return cls (data[0], data[1])
+
+
+class ClientState:
+    NEW = "new"
+    CONNECTING = "connecting"
+    CONNECTED = "normal"
+    CLOSED = "closed"
+
+
+class ClientData (object):
+
+    def __init__ (self, r_host, r_port, cli_conn, seed, key, name=None):
+        self.state = ClientState.NEW
+        self.cli_conn = cli_conn
+        self.r_conn = None
+        self.r_host = r_host
+        self.r_port = r_port
+        self.client_id = "%s:%s-%s:%s" % (cli_conn.peer[0], cli_conn.peer[1], r_host, r_port)
+        self.seed = seed
+        self.key = key
+        self.name = name
+        self.crypter_r = crypter.MyCryptor(key, seed, 128)
+        self.crypter_w = crypter.MyCryptor(key, seed, 128)
+        self.passive_sock = None
+ 
+import crypter # avoid cycle import
 
 if __name__ == '__main__':
     assert unpack_head (pack_head (10)) == 10

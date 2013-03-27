@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # coding:utf-8
 
-log_dir = "log"
+import os
+log_dir = os.path.join (os.path.dirname (__file__), "log")
 log_rotate_size = 20000
 log_backup_count = 3
 log_level = "DEBUG"

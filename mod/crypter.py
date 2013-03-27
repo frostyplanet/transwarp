@@ -8,8 +8,9 @@ def fix_len (s, byte_len):
     if l < byte_len:
         return  s + (byte_len - l) * 'x'
     elif l > byte_len:
-        return key[0 : byte_len]
-
+        return s[0 : byte_len]
+    else:
+        return s
 
 
 class MyCryptor (object):
@@ -20,7 +21,7 @@ class MyCryptor (object):
         self.iv = fix_len (iv, self.byte_len)
         self.cy_obj = AES.new (self.key, AES.MODE_CFB, self.iv)
 
-    def encrpy (self, data):
+    def encrypt (self, data):
         return self.cy_obj.encrypt (data)
 
     def decrypt (self, buf):
@@ -34,9 +35,10 @@ if __name__ == '__main__':
     c1 = MyCryptor (aes_key, "aaa", 128)
     c2 = MyCryptor (aes_key, "aaa", 128)
     for i in arr:
-        b1 = c1.encrpy (i)
+        b1 = c1.encrypt (i)
         b2 = c2.decrypt (b1)
         assert i == b2
+        print i
 
 
 
