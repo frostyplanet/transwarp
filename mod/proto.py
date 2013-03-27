@@ -55,8 +55,8 @@ class AuthData (object):
         self.r_port = r_port
 
     def serialize (self):
-        crypter = crypter.MyCryptor(self.key, seed, 256)
-        dest = crypter.encrypt (pickle.dumps ((self.r_host, self.r_port)))
+        c = crypter.MyCryptor(self.key, seed, 256)
+        dest = c.encrypt (pickle.dumps ((self.r_host, self.r_port)))
         return pickle.dumps ((self.seed, self._hash, dest))
 
     @classmethod
@@ -75,8 +75,8 @@ class AuthData (object):
             return None
         dest = None
         try:
-            crypter = crypter.MyCryptor(self.key, seed, 256)
-            dest = pickle.loads (crypter.decrypt (data[2]))
+            c = crypter.MyCryptor(self.key, seed, 256)
+            dest = pickle.loads (c.decrypt (data[2]))
         except Exception, e: 
             raise PackError ("%s dest format error" % (cls.__name__))
         if len (dest) != 2:
