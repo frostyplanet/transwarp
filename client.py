@@ -217,7 +217,7 @@ class TransWarpClient (object):
         self.engine.connect_unblock (self.server_addr, self._on_server_connected, __on_connect_error, cb_args=(client, ))
 
     def _sock5_handshake (self, sock):
-        #print "handshake"
+        print "handshake"
         conn = Connection (sock)
         def __on_ipv6_read (conn):
             self._send_sock5_unsupport (conn)
@@ -259,6 +259,7 @@ class TransWarpClient (object):
             else:
                 self._send_sock5_unsupport (conn)
         def __cb2 (conn):
+            print "cb2"
             return self.engine.read_unblock (conn, 4, __on_auth_type_read)
         def __cb1 (conn):
             return self.engine.write_unblock (conn, VER + METHOD, __cb2)

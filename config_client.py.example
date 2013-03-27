@@ -11,7 +11,7 @@ log_level = "DEBUG"
 
 RUN_DIR = os.path.join (os.path.dirname (__file__), "run")
 
-SERVER_ADDR = ("m2.42qu.us", 23000)
+SERVER_ADDR = ("127.0.0.1", 23000)
 SOCK5_ADDR = ("127.0.0.1", 9000)
 
 KEY = "sdfsdr9798798"

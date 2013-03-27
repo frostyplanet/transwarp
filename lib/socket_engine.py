@@ -343,8 +343,35 @@ class SocketEngine (object):
 
     def _do_unblock_write (self, conn, buf, ok_cb):
         """ return False to indicate need to reg conn into poll.
-            return True to indicate no more to read, can be suc or fail.
+            return True to indicate no more to write, can be suc or fail.
             """
+#        if conn.status != ConnState.TOWRITE:
+#            raise Exception ("you must have forgotten to watch_conn() or remove_conn()")
+        _len = len (buf)
+        _send = conn.sock.send
+        offset = conn.wr_offset
+        while offset < _len:
+            try:
+                res = _send (buffer (buf, offset))
+                if not res:
+                    conn.error = WriteNonblockError (0, "peer close")
+                    break
+                offset += res
+            except socket.error, e:
+                if e[0] == errno.EAGAIN:
+                    continue
+                elif e[0] == errno.EINTR:
+                    continue
+                conn.error = WriteNonblockError(e)
+                break
+        conn.wr_offset = offset
+#        conn.status = ConnState.USING
+        if conn.error is not None:
+            if callable (conn.unblock_err_cb): 
+                conn.call_cb (conn.unblock_err_cb, (conn, ) + conn.unblock_cb_args, conn.unblock_tb) #error callback
+            self._close_conn (conn) # NOTICE: we will close the conn after err_cb
+        else:
+            conn.call_cb (ok_cb, (conn, ) + conn.unblock_cb_args, conn.unblock_tb)
         return True
 
                 
@@ -411,7 +438,7 @@ class SocketEngine (object):
         assert callable (ok_cb)
         assert not err_cb or callable (err_cb)
         assert isinstance (cb_args, tuple)
-#        conn.status = ConnState.TOWRITE
+        conn.status = ConnState.TOWRITE
         conn.wr_offset = 0
         conn.error = None
         conn.unblock_err_cb = err_cb
@@ -419,29 +446,14 @@ class SocketEngine (object):
         if self._debug:
             conn.unblock_tb = traceback.extract_stack ()[0:-1]
         conn.call_cb = self._callback_indirect
-        _len = len (buf)
-        _send = conn.sock.sendall
-        offset = conn.wr_offset
-        while offset < _len:
-            try:
-                res = _send (buffer (buf, offset))
-                if not res:
-                    conn.error = WriteNonblockError (0, "peer close")
-                    break
-                offset += res
-            except socket.error, e:
-                if e[0] == errno.EAGAIN or e[0] == errno.EINTR:
-                    continue
-                conn.error = WriteNonblockError(e)
-                break
-        conn.wr_offset = offset
-        conn.status = ConnState.USING
-        if conn.error is not None:
-            if callable (conn.unblock_err_cb): 
-                conn.call_cb (conn.unblock_err_cb, (conn, ) + conn.unblock_cb_args, conn.unblock_tb) #error callback
-            self._close_conn (conn) # NOTICE: we will close the conn after err_cb
-        else:
-            conn.call_cb (ok_cb, (conn, ) + conn.unblock_cb_args, conn.unblock_tb)
+        if not self._do_unblock_write (conn, buf, ok_cb):
+            conn.last_ts = self.get_time ()
+            self._lock ()
+            fd = conn.fd
+            self._sock_dict[fd] = conn
+            conn.call_cb = self._exec_callback
+            self._poll.register (fd, 'w', self._do_unblock_write, (conn, buf, ok_cb))
+            self._unlock ()
 
 
     def get_poll_size (self):
@@ -466,7 +478,7 @@ class SocketEngine (object):
             inact_time = now - conn.last_ts
             if conn.status == ConnState.IDLE and self._idle_timeout > 0  and inact_time > self._idle_timeout:
                 return True
-            elif (conn.status == ConnState.TOREAD) \
+            elif (conn.status == ConnState.TOREAD or conn.status == ConnState.TOWRITE) \
                     and self._rw_timeout > 0 and inact_time > self._rw_timeout:
                 return True
             return False
