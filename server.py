@@ -33,6 +33,7 @@ class TransWarpServer (object):
 
     def _new_client (self, sock):
         conn = Connection (sock)
+        self.logger.debug ("new %s" % (str(conn.peer)))
         self.engine.read_unblock (conn, self.head_len, self._on_recv_head, None, cb_args=(self._auth, ))
 
 
@@ -72,6 +73,7 @@ class TransWarpServer (object):
         buf = ""
         _buf = ""
         data = ""
+        self.logger.debug ("remote %s readable" % (client.client_id))
         while True:
             try:
                 _buf = r_conn.sock.recv (1024)
@@ -100,21 +102,25 @@ class TransWarpServer (object):
         else:
             self.engine.watch_conn (r_conn)
             def __write_ok (conn, *args):
+                self.logger.debug ("remote %s client_write_ok" % (client.client_id))
                 self.engine.watch_conn (client.cli_conn)
                 return
             return self.engine.write_unblock (client.cli_conn, data, __write_ok, self._on_err, cb_args=(client, ))
 
 
     def _on_client_readable (self, cli_conn, client):
+        self.logger.debug ("client %s readable" % (client.client_id))
         def __client_head_err (cli_conn, *args):
             self.logger.debug ("client %s %s" % (client.client_id, cli_conn.error))
             self.close_client (client) 
             return
         def __write_ok (conn, *args):
+            self.logger.debug ("client %s write ok" % (client.client_id))
             self.engine.watch_conn (client.r_conn)
             return
         def __on_client_read (cli_conn, *args):
             data = client.crypter_r.decrypt (cli_conn.get_readbuf ())
+            self.logger.debug ("client %s read" % (client.client_id))
             self.engine.watch_conn (cli_conn)
             self.engine.write_unblock (client.r_conn, data, __write_ok, self._on_err, cb_args=(client, ))
             return
@@ -128,6 +134,7 @@ class TransWarpServer (object):
         resp = proto.ServerResponse (0, "")
         buf = client.crypter_w.encrypt (resp.serialize ())
         def _write_ok (cli_conn, *args):
+            self.logger.debug ("client %s remote conn resp" % (client.client_id))
             self.engine.put_sock (cli_conn.sock, readable_cb=self._on_client_readable, readable_cb_args=(client,), 
                     idle_timeout_cb=self._on_idle)
             return

@@ -359,6 +359,7 @@ class SocketEngine (object):
                 offset += res
             except socket.error, e:
                 if e[0] == errno.EAGAIN:
+                    print "write eagain"
                     continue
                 elif e[0] == errno.EINTR:
                     continue
