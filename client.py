@@ -155,6 +155,7 @@ class TransWarpClient (object):
                 cb_args=(__on_server_read, __server_head_err))
 
     def _on_server_connected (self, sock, client):
+        self.logger.debug ("client %s connected to server" % (client.client_id))
         r_conn = Connection (sock)
         _hash = proto.myhash (client.seed, self.key)
         auth_data = proto.AuthData (client.seed, _hash, client.r_host, client.r_port)
@@ -198,7 +199,7 @@ class TransWarpClient (object):
         if client.cli_conn:
             self.engine.close_conn (client.cli_conn)
         client.state = proto.ClientState.CLOSED
-        self.logger.info ("client %s closed" % (client))
+        self.logger.info ("client %s closed" % (client.client_id))
 
     def _close_client (self, conn, client):
         self.close_client (client)
@@ -206,6 +207,7 @@ class TransWarpClient (object):
 
 
     def _connect_server (self, host, port, cli_conn):
+        self.logger.debug ("connecting server for host:port")
         self.engine.remove_conn (cli_conn)
         seed = proto.random_string (16)
         client = proto.ClientData (host, port, cli_conn, seed, self.key)
@@ -217,7 +219,7 @@ class TransWarpClient (object):
         self.engine.connect_unblock (self.server_addr, self._on_server_connected, __on_connect_error, cb_args=(client, ))
 
     def _sock5_handshake (self, sock):
-        print "handshake"
+        self.logger.debug ("handshake")
         conn = Connection (sock)
         def __on_ipv6_read (conn):
             self._send_sock5_unsupport (conn)

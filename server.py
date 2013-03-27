@@ -64,7 +64,7 @@ class TransWarpServer (object):
         if client.cli_conn:
             self.engine.close_conn (client.cli_conn)
         client.state = proto.ClientState.CLOSED
-        self.logger.info ("client %s closed" % (client))
+        self.logger.info ("client %s closed" % (client.client_id))
 
     def _close_client (self, conn, client):
         self.close_client (client)
