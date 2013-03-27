@@ -158,7 +158,7 @@ class TransWarpClient (object):
         self.logger.debug ("client %s connected to server" % (client.client_id))
         r_conn = Connection (sock)
         _hash = proto.myhash (client.seed, self.key)
-        auth_data = proto.AuthData (client.seed, _hash, client.r_host, client.r_port)
+        auth_data = proto.AuthData (client.seed, _hash, self.key, client.r_host, client.r_port)
         buf = auth_data.serialize ()
         buf = proto.pack_head (len (buf)) + buf
         client.r_conn = r_conn

@@ -47,25 +47,41 @@ def auth (seed, _hash, keys):
 
 class AuthData (object):
 
-    def __init__ (self, seed, _hash, r_host, r_port):
+    def __init__ (self, seed, _hash, key, r_host, r_port):
         self.seed = seed
         self._hash = _hash
+        self.key = key
         self.r_host = r_host
         self.r_port = r_port
 
     def serialize (self):
-        return pickle.dumps ((self.seed, self._hash, self.r_host, self.r_port))
+        crypter = crypter.MyCryptor(self.key, seed, 256)
+        dest = crypter.encrypt (pickle.dumps ((self.r_host, self.r_port)))
+        return pickle.dumps ((self.seed, self._hash, dest))
 
     @classmethod
-    def deserialize (cls, buf):
+    def deserialize (cls, buf, keys):
         data = None
         try:
             data = pickle.loads (buf)
         except Exception, e:
             raise PackError ("%s unpickle error %s" % (cls.__name__, str(e)))
-        if len (data) != 4:
+        if len (data) != 3:
             raise PackError ("%s format error" % (cls.__name__))
-        return cls (data[0], data[1], data[2], data[3])
+        seed = data[0]
+        _hash = data[1]
+        key = auth (seed, _hash, keys)
+        if not key:
+            return None
+        dest = None
+        try:
+            crypter = crypter.MyCryptor(self.key, seed, 256)
+            dest = pickle.loads (crypter.decrypt (data[2]))
+        except Exception, e: 
+            raise PackError ("%s dest format error" % (cls.__name__))
+        if len (dest) != 2:
+            raise PackError ("%s format error" % (cls.__name__))
+        return cls (seed, _hash, key, dest[0], dest[1])
 
 class ServerResponse (object):
 

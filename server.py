@@ -40,16 +40,15 @@ class TransWarpServer (object):
     def _auth (self, cli_conn):
         auth_data = None
         try:
-            auth_data = proto.AuthData.deserialize (cli_conn.get_readbuf ())
+            auth_data = proto.AuthData.deserialize (cli_conn.get_readbuf (), self.auth_keys)
         except Exception, e:
             self.logger.exception ("peer %s %s" % (cli_conn.peer, str(e)))
-        key = proto.auth (auth_data.seed, auth_data._hash, self.auth_keys)
-        if not key:
+        if not auth_data:
             self.logger.warn ("peer %s not authorized" % (str(cli_conn.peer)))
             self.engine.close_conn (cli_conn)
             return
         client = proto.ClientData (auth_data.r_host, auth_data.r_port, cli_conn, 
-                auth_data.seed, key)
+                auth_data.seed, auth_data.key)
         self.engine.remove_conn (cli_conn)
         self.client_conn[client.client_id] = client
         self.logger.info ("client %s auth" % (client.client_id))
