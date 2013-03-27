@@ -138,7 +138,7 @@ class TransWarpServer (object):
             self.engine.put_sock (cli_conn.sock, readable_cb=self._on_client_readable, readable_cb_args=(client,), 
                     idle_timeout_cb=self._on_idle)
             return
-        self.engine.write_unblock (client.cli_conn, proto.pack_head (len (buf)) + buf, _write_ok, self._close_client)
+        self.engine.write_unblock (client.cli_conn, proto.pack_head (len (buf)) + buf, _write_ok, self._on_err)
         
 
     def _on_remote_conn_err (self, error, client):
@@ -148,7 +148,7 @@ class TransWarpServer (object):
         def _write_ok (cli_conn, *args):
             self.close_client (client)
             return
-        self.engine.write_unblock (client.cli_conn, proto.pack_head (len (buf)) + buf, _write_ok, self._close_client)
+        self.engine.write_unblock (client.cli_conn, proto.pack_head (len (buf)) + buf, _write_ok, self._on_err)
 
     def _on_idle (self, conn, client):
         self.logger.info ("client %s: closed due to idle" % (client.client_id))
