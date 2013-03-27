@@ -7,8 +7,12 @@ from lib.log import Log
 import config_client as config
 import mod.proto as proto
 import socket
+import lib.daemon as daemon
 import errno
 import struct
+import os
+import sys
+import signal
 
 VER = "\x05"
 METHOD = "\x00"
@@ -213,7 +217,7 @@ class TransWarpClient (object):
         self.engine.connect_unblock (self.server_addr, self._on_server_connected, __on_connect_error, cb_args=(client, ))
 
     def _sock5_handshake (self, sock):
-        print "handshake"
+        #print "handshake"
         conn = Connection (sock)
         def __on_ipv6_read (conn):
             self._send_sock5_unsupport (conn)
@@ -260,11 +264,36 @@ class TransWarpClient (object):
             return self.engine.write_unblock (conn, VER + METHOD, __cb2)
         self.engine.read_unblock (conn, 3, __cb1) # on error automatic close connection
 
-if __name__ == '__main__':
-
+def main ():
     twclient = TransWarpClient ()
+
+    def exit_sig_handler (sig_num, frm):
+        global stop_signal_flag
+        if stop_signal_flag:
+            return
+        stop_signal_flag = True
+        twclient.stop ()
+        return
     twclient.start ()
+    signal.signal (signal.SIGTERM, exit_sig_handler)
+    signal.signal (signal.SIGINT, exit_sig_handler)
     twclient.loop ()
+    return
         
+def usage ():
+    print "usage:\t%s star/stop/restart\t#manage forked daemon" % (sys.argv[0])
+    print "\t%s run\t\t# run without daemon, for test purpose" % (sys.argv[0])
+    os._exit (1)
+
+if __name__ == '__main__':
+    if len (sys.argv) <= 1:
+        usage ()
+    else:
+        logger = Log ("daemon", config=config) # to ensure log is permitted to write
+        pid_file = "transwarp_agent.pid"
+        mon_pid_file = "transwarp_agent_mon.pid"
+        action = sys.argv[1]
+        daemon.cmd_wrapper (action, main, usage, logger, config.log_dir, config.RUN_DIR, pid_file, mon_pid_file)
+
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4 :

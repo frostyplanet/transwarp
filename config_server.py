@@ -8,7 +8,7 @@ log_backup_count = 3
 log_level = "DEBUG"
 # for log.py
 
-RUN_DIR = "run"
+RUN_DIR = os.path.join (os.path.dirname (__file__), "run") 
 
 SERVER_ADDR = ("0.0.0.0", 23000)
 
