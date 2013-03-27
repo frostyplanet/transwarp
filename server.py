@@ -11,6 +11,7 @@ import errno
 import lib.daemon as daemon
 import signal
 import sys
+import os
 
 import config_server as config
 
@@ -22,21 +23,20 @@ class TransWarpServer (object):
         self.engine = TCPSocketEngine (io_poll.get_poll(), is_blocking=False)
         self.logger = Log ("server", config=config)
         self.engine.set_logger (self.logger)
-        self.engine.set_timeout (rw_timeout=60, idle_timeout=3600 * 12)
+        self.engine.set_timeout (rw_timeout=60, idle_timeout=3600)
         self.is_running = False
         self.addr = config.SERVER_ADDR
         self.client_conn = dict ()
         self.head_len = proto.head_len ()
         self.auth_keys = config.ACCEPT_KEYS
+        self.passive_sock = None
 
     def _new_client (self, sock):
         conn = Connection (sock)
-        print "new"
         self.engine.read_unblock (conn, self.head_len, self._on_recv_head, None, cb_args=(self._auth, ))
 
 
     def _auth (self, cli_conn):
-        print "auth"
         auth_data = None
         try:
             auth_data = proto.AuthData.deserialize (cli_conn.get_readbuf ())
@@ -45,7 +45,7 @@ class TransWarpServer (object):
         key = proto.auth (auth_data.seed, auth_data._hash, self.auth_keys)
         if not key:
             self.logger.warn ("peer %s not authorized" % (cli_conn.peer))
-            self.engine.close_conn (conn)
+            self.engine.close_conn (cli_conn)
             return
         client = proto.ClientData (auth_data.r_host, auth_data.r_port, cli_conn, 
                 auth_data.seed, auth_data._hash, name=key)
@@ -73,7 +73,6 @@ class TransWarpServer (object):
         _buf = ""
         data = ""
         while True:
-            print "remote read"
             try:
                 _buf = r_conn.sock.recv (1024)
                 if not _buf:
@@ -107,7 +106,6 @@ class TransWarpServer (object):
 
 
     def _on_client_readable (self, cli_conn, client):
-        print "client read"
         def __client_head_err (cli_conn, *args):
             self.logger.debug ("client %s %s" % (client.client_id, cli_conn.error))
             self.close_client (client) 
@@ -136,17 +134,18 @@ class TransWarpServer (object):
         self.engine.write_unblock (client.cli_conn, proto.pack_head (len (buf)) + buf, _write_ok, self._close_client)
         
 
-    def _on_remote_conn_err (self, r_conn, client):
-        try:
-            del self.client_conn[client.client_id]
-        except:
-            pass
-        self.logger.warn ("client %s connection failed" % (client.client_id))
-        #TODO notify client 
+    def _on_remote_conn_err (self, error, client):
+        self.logger.warn ("client %s: connection failed, %s" % (client.client_id, str(error)))
+        resp = proto.ServerResponse (error.args[0], error.args[1])
+        buf = client.crypter_w.encrypt (resp.serialize ())
+        def _write_ok (cli_conn, *args):
+            self.close_client (client)
+            return
+        self.engine.write_unblock (client.cli_conn, proto.pack_head (len (buf)) + buf, _write_ok, self._close_client)
 
     def _on_idle (self, conn, client):
-        #TODO
-        pass
+        self.logger.info ("client %s: closed due to idle" % (client.client_id))
+        self.close_client(client)
 
     def _on_err (self, conn, client):
         self.logger.error ("peer %s %s" % (conn.peer, conn.error))

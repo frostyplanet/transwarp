@@ -20,6 +20,7 @@ class TransWarpClient (object):
         self.engine = TCPSocketEngine (io_poll.get_poll(), is_blocking=False)
         self.logger = Log ("client", config=config)
         self.engine.set_logger (self.logger)
+        self.engine.set_timeout (rw_timeout=60, idle_timeout=3600)
         self.is_running = False
         self.sock5_addr = config.SOCK5_ADDR
         ip = self.sock5_addr[0]
@@ -53,8 +54,8 @@ class TransWarpClient (object):
         self.close_client (client)
 
     def _on_idle (self, conn, client):
-        #TODO
-        pass
+        self.logger.info ("client %s: closed due to idle" % (client.client_id))
+        self.close_client(client)
 
     def _send_sock5_unsupport (self, conn):
         buf = "%s%s\x00\x01%s" % (VER, "\x07", self._sock5_server_id)
