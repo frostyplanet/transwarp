@@ -55,7 +55,7 @@ class AuthData (object):
         self.r_port = r_port
 
     def serialize (self):
-        c = crypter.MyCryptor(self.key, seed, 256)
+        c = crypter.MyCryptor(self.key, self.seed, 128)
         dest = c.encrypt (pickle.dumps ((self.r_host, self.r_port)))
         return pickle.dumps ((self.seed, self._hash, dest))
 
@@ -75,10 +75,10 @@ class AuthData (object):
             return None
         dest = None
         try:
-            c = crypter.MyCryptor(self.key, seed, 256)
+            c = crypter.MyCryptor(key, seed, 128)
             dest = pickle.loads (c.decrypt (data[2]))
         except Exception, e: 
-            raise PackError ("%s dest format error" % (cls.__name__))
+            raise PackError ("%s dest format error %s" % (cls.__name__, str(e)))
         if len (dest) != 2:
             raise PackError ("%s format error" % (cls.__name__))
         return cls (seed, _hash, key, dest[0], dest[1])
@@ -138,5 +138,8 @@ if __name__ == '__main__':
     seed, _hash = gen_auth_data (key)
     print seed, _hash
     assert key == auth (seed, _hash, [key, "sssss"])
+    a = AuthData (seed, _hash, key, "g.cn", 88)
+    d = AuthData.deserialize (a.serialize (), [key, "hahahaha"])
+    assert d
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4 :
