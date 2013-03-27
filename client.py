@@ -156,7 +156,8 @@ class TransWarpClient (object):
 
     def _on_server_connected (self, sock, client):
         r_conn = Connection (sock)
-        auth_data = proto.AuthData (client.seed, client.key, client.r_host, client.r_port)
+        _hash = proto.myhash (client.seed, self.key)
+        auth_data = proto.AuthData (client.seed, _hash, client.r_host, client.r_port)
         buf = auth_data.serialize ()
         buf = proto.pack_head (len (buf)) + buf
         client.r_conn = r_conn
@@ -207,8 +208,7 @@ class TransWarpClient (object):
     def _connect_server (self, host, port, cli_conn):
         self.engine.remove_conn (cli_conn)
         seed = proto.random_string (16)
-        _hash = proto.myhash (seed, self.key)
-        client = proto.ClientData (host, port, cli_conn, seed, _hash)
+        client = proto.ClientData (host, port, cli_conn, seed, self.key)
         self.client_conn[client.client_id] = client
         def __on_connect_error (err, *args):
             self.logger.error ("client %s cannot connect to server, %s" % (client.client_id, str(err)))
@@ -263,6 +263,8 @@ class TransWarpClient (object):
         def __cb1 (conn):
             return self.engine.write_unblock (conn, VER + METHOD, __cb2)
         self.engine.read_unblock (conn, 3, __cb1) # on error automatic close connection
+
+stop_signal_flag = False
 
 def main ():
     twclient = TransWarpClient ()
