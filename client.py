@@ -207,7 +207,7 @@ class TransWarpClient (object):
 
 
     def _connect_server (self, host, port, cli_conn):
-        self.logger.debug ("connecting server for host:port")
+        self.logger.debug ("connecting server %s for %s:%s" % (self.server_addr, host, port))
         self.engine.remove_conn (cli_conn)
         seed = proto.random_string (16)
         client = proto.ClientData (host, port, cli_conn, seed, self.key)
