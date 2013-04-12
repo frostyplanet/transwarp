@@ -147,9 +147,13 @@ class TransWarpClient (object):
             self.engine.watch_conn (client.cli_conn)
             return
         def __on_server_read (r_conn, *args):
-            data = client.crypter_r.decrypt (r_conn.get_readbuf ())
-            self.engine.watch_conn (r_conn)
-            self.engine.write_unblock (client.cli_conn, data, __write_ok, self._on_err, cb_args=(client, ))
+            try:
+                data = client.crypter_r.decrypt (r_conn.get_readbuf ())
+                self.engine.watch_conn (r_conn)
+                self.engine.write_unblock (client.cli_conn, data, __write_ok, self._on_err, cb_args=(client, ))
+            except Exception, e:
+                self.logger.exception ("client %s: server response error %s" % (client.client_id, str(e)))
+                self.close_client(client)
             return
         self.engine.read_unblock (r_conn, self.head_len, self._on_recv_head, __server_head_err, 
                 cb_args=(__on_server_read, __server_head_err))
@@ -172,6 +176,7 @@ class TransWarpClient (object):
                 self.logger.info ("client %s: %s %s" % (client.client_id, resp.err_no, resp.message))
             except Exception, e:
                 self.logger.exception ("client %s: server response error %s" % (client.client_id, str(e)))
+                self.close_client(client)
                 return
             return self._send_sock5_reply (client, resp.err_no)
 
@@ -186,6 +191,9 @@ class TransWarpClient (object):
             if data_len > 0:
                 self.engine.read_unblock (r_conn, data_len, __on_remote_respond, self._on_err, cb_args=(client, ))
                 return
+            self.logger.error ("zero len head")
+            self.close_client(client)
+            return
         def __write_ok (r_conn, *args):
             self.engine.read_unblock (r_conn, self.head_len, __on_read_head, self._on_err, cb_args=(client, ))
             return
@@ -196,8 +204,10 @@ class TransWarpClient (object):
             del self.client_conn[client.client_id]
         if client.r_conn:
             self.engine.close_conn (client.r_conn)
+            client.r_conn = None
         if client.cli_conn:
             self.engine.close_conn (client.cli_conn)
+            client.cli_conn = None
         client.state = proto.ClientState.CLOSED
         self.logger.info ("client %s closed" % (client.client_id))
 

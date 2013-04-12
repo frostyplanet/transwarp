@@ -118,10 +118,14 @@ class TransWarpServer (object):
             self.engine.watch_conn (client.r_conn)
             return
         def __on_client_read (cli_conn, *args):
-            data = client.crypter_r.decrypt (cli_conn.get_readbuf ())
-            self.logger.debug ("client %s read" % (client.client_id))
-            self.engine.watch_conn (cli_conn)
-            self.engine.write_unblock (client.r_conn, data, __write_ok, self._on_err, cb_args=(client, ))
+            try:
+                data = client.crypter_r.decrypt (cli_conn.get_readbuf ())
+                self.logger.debug ("client %s read" % (client.client_id))
+                self.engine.watch_conn (cli_conn)
+                self.engine.write_unblock (client.r_conn, data, __write_ok, self._on_err, cb_args=(client, ))
+            except Exception, e:
+                self.logger.exception ("client %s: client response error %s" % (client.client_id, str(e)))
+                self.close_client(client)
             return
         self.engine.read_unblock (cli_conn, self.head_len, self._on_recv_head, __client_head_err, cb_args=(__on_client_read, __client_head_err))
 
