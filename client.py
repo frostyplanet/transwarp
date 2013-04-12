@@ -106,7 +106,7 @@ class TransWarpClient (object):
         data = ""
         while True:
             try:
-                _buf = cli_conn.sock.recv (1024)
+                _buf = cli_conn.sock.recv (4096)
                 if not _buf:
                     break
                 buf += _buf
@@ -116,7 +116,7 @@ class TransWarpClient (object):
                 elif e.args[0] == errno.EINTR:
                     continue
                 else:
-                    self.logger.exception (e)
+                    self.logger.debug ("client %s: %s" % (client.client_id, e))
                     self.close_client(client)
                     return
         if buf:
@@ -150,7 +150,8 @@ class TransWarpClient (object):
             try:
                 data = client.crypter_r.decrypt (r_conn.get_readbuf ())
                 self.engine.watch_conn (r_conn)
-                self.engine.write_unblock (client.cli_conn, data, __write_ok, self._on_err, cb_args=(client, ))
+                if client.cli_conn:
+                    self.engine.write_unblock (client.cli_conn, data, __write_ok, self._on_err, cb_args=(client, ))
             except Exception, e:
                 self.logger.exception ("client %s: server response error %s" % (client.client_id, str(e)))
                 self.close_client(client)

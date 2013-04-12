@@ -115,7 +115,8 @@ class TransWarpServer (object):
             return
         def __write_ok (conn, *args):
             self.logger.debug ("client %s write ok" % (client.client_id))
-            self.engine.watch_conn (client.r_conn)
+            if client.r_conn:
+                self.engine.watch_conn (client.r_conn)
             return
         def __on_client_read (cli_conn, *args):
             try:
