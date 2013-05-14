@@ -7,27 +7,21 @@ from lib.log import Log
 import mod.proto as proto
 import mod.crypter as crypter
 import socket
-import errno
 import lib.daemon as daemon
 import signal
 import sys
 import os
 
 import config_server as config
-
+from mod.common import TransWarpBase
        
 
-class TransWarpServer (object):
+class TransWarpServer (TransWarpBase):
 
     def __init__ (self):
-        self.engine = TCPSocketEngine (io_poll.get_poll(), is_blocking=False)
+        TransWarpBase.__init__ (self)
         self.logger = Log ("server", config=config)
-        self.engine.set_logger (self.logger)
-        self.engine.set_timeout (rw_timeout=60, idle_timeout=3600)
-        self.is_running = False
         self.addr = config.SERVER_ADDR
-        self.client_conn = dict ()
-        self.head_len = proto.head_len ()
         self.auth_keys = config.ACCEPT_KEYS
         self.passive_sock = None
 
@@ -55,80 +49,14 @@ class TransWarpServer (object):
         client.state = proto.ClientState.CONNECTING
         self.engine.connect_unblock ((client.r_host, client.r_port), self._on_remote_conn, self._on_remote_conn_err, cb_args=(client, ))
 
-    def close_client (self, client):
-        if self.client_conn.has_key (client.client_id):
-            del self.client_conn[client.client_id]
-        if client.r_conn:
-            self.engine.close_conn (client.r_conn)
-        if client.cli_conn:
-            self.engine.close_conn (client.cli_conn)
-        client.state = proto.ClientState.CLOSED
-        self.logger.info ("client %s closed" % (client.client_id))
-
-    def _close_client (self, conn, client):
-        self.close_client (client)
-
     def _on_remote_readable (self, r_conn, client):
-        buf = ""
-        _buf = ""
-        data = ""
         self.logger.debug ("remote %s readable" % (client.client_id))
-        while True:
-            try:
-                _buf = r_conn.sock.recv (1024)
-                if not _buf:
-                    break
-                buf += _buf
-            except socket.error, e:
-                if e.args[0] == errno.EAGAIN:
-                    break
-                elif e.args[0] == errno.EINTR:
-                    continue
-                else:
-                    self.logger.exception (e)
-                    self.close_client(client)
-                    return
-        if buf:
-            data = client.crypter_w.encrypt (buf)
-            data = proto.pack_head (len (data)) + data
-        if not _buf:
-            if buf:
-                self.engine.close_conn (r_conn)
-                client.r_conn = None
-                return self.engine.write_unblock (client.cli_conn, data, self._close_client, self._on_err, cb_args=(client,))
-            else:
-                return self.close_client (client)
-        else:
-            self.engine.watch_conn (r_conn)
-            def __write_ok (conn, *args):
-                self.logger.debug ("remote %s client_write_ok" % (client.client_id))
-                self.engine.watch_conn (client.cli_conn)
-                return
-            return self.engine.write_unblock (client.cli_conn, data, __write_ok, self._on_err, cb_args=(client, ))
+        self.stream_to_fix (r_conn, client.cli_conn, client)
 
 
     def _on_client_readable (self, cli_conn, client):
         self.logger.debug ("client %s readable" % (client.client_id))
-        def __client_head_err (cli_conn, *args):
-            self.logger.debug ("client %s %s" % (client.client_id, cli_conn.error))
-            self.close_client (client) 
-            return
-        def __write_ok (conn, *args):
-            self.logger.debug ("client %s write ok" % (client.client_id))
-            if client.r_conn:
-                self.engine.watch_conn (client.r_conn)
-            return
-        def __on_client_read (cli_conn, *args):
-            try:
-                data = client.crypter_r.decrypt (cli_conn.get_readbuf ())
-                self.logger.debug ("client %s read" % (client.client_id))
-                self.engine.watch_conn (cli_conn)
-                self.engine.write_unblock (client.r_conn, data, __write_ok, self._on_err, cb_args=(client, ))
-            except Exception, e:
-                self.logger.exception ("client %s: client response error %s" % (client.client_id, str(e)))
-                self.close_client(client)
-            return
-        self.engine.read_unblock (cli_conn, self.head_len, self._on_recv_head, __client_head_err, cb_args=(__on_client_read, __client_head_err))
+        self.fix_to_stream (cli_conn, client.r_conn, client)
 
     def _on_remote_conn (self, sock, client):
         client.state = proto.ClientState.CONNECTED
@@ -153,26 +81,6 @@ class TransWarpServer (object):
             self.close_client (client)
             return
         self.engine.write_unblock (client.cli_conn, proto.pack_head (len (buf)) + buf, _write_ok, self._on_err)
-
-    def _on_idle (self, conn, client):
-        self.logger.info ("client %s: closed due to idle" % (client.client_id))
-        self.close_client(client)
-
-    def _on_err (self, conn, client):
-        self.logger.error ("peer %s %s" % (conn.peer, conn.error))
-        self.close_client (client)
-
-
-    def _on_recv_head (self, conn, msg_cb, head_err_cb=None):
-        assert callable (msg_cb)
-        try:
-            data_len = proto.unpack_head (conn.get_readbuf ())
-        except Exception, e:
-            self.logger.exception (e)
-            if callable (head_err_cb):
-                head_err_cb (conn)
-            return
-        self.engine.read_unblock (conn, data_len, msg_cb, head_err_cb)
 
     def start (self): 
         if self.is_running:

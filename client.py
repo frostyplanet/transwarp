@@ -13,28 +13,24 @@ import struct
 import os
 import sys
 import signal
+from mod.common import TransWarpBase
 
 VER = "\x05"
 METHOD = "\x00"
 
 
-class TransWarpClient (object):
+class TransWarpClient (TransWarpBase):
 
     def __init__ (self):
-        self.engine = TCPSocketEngine (io_poll.get_poll(), is_blocking=False)
+        TransWarpBase.__init__ (self)
         self.logger = Log ("client", config=config)
-        self.engine.set_logger (self.logger)
-        self.engine.set_timeout (rw_timeout=60, idle_timeout=3600)
-        self.is_running = False
         self.sock5_addr = config.SOCK5_ADDR
         ip = self.sock5_addr[0]
         arr = map (lambda x:chr(int(x)), ip.split ("."))
         self._sock5_server_id = struct.pack ("!4cH", arr[0], arr[1], arr[2], arr[3], self.sock5_addr[1])
         self.server_addr = config.SERVER_ADDR
         self.sock5_sock = None
-        self.client_conn = dict () # 
         self.key = config.KEY
-        self.head_len = proto.head_len ()
 
 
     def start (self):
@@ -52,14 +48,6 @@ class TransWarpClient (object):
     def loop (self):
         while self.is_running:
             self.engine.poll ()
-
-    def _on_err (self, conn, client):
-        self.logger.error ("peer %s %s" % (conn.peer, conn.error))
-        self.close_client (client)
-
-    def _on_idle (self, conn, client):
-        self.logger.info ("client %s: closed due to idle" % (client.client_id))
-        self.close_client(client)
 
     def _send_sock5_unsupport (self, conn):
         buf = "%s%s\x00\x01%s" % (VER, "\x07", self._sock5_server_id)
@@ -89,80 +77,15 @@ class TransWarpClient (object):
             return
         self.engine.write_unblock (client.cli_conn, buf, __write_ok, self._on_err, cb_args=(client,))
 
-    def _on_recv_head (self, conn, msg_cb, head_err_cb=None):
-        assert callable (msg_cb)
-        try:
-            data_len = proto.unpack_head (conn.get_readbuf ())
-        except Exception, e:
-            self.logger.exception (e)
-            if callable (head_err_cb):
-                head_err_cb (conn)
-            return
-        self.engine.read_unblock (conn, data_len, msg_cb, head_err_cb)
-
     def _on_client_readable (self, cli_conn, client):
-
-        def __send_and_close (client, data):
-            if not buf:
-                return self.close_client (client)
-            self.engine.close_conn (client.cli_conn)
-            data = client.crypter_w.encrypt (data)
-            data = proto.pack_head (len (data)) + data
-            def __write_ok (conn, *args):
-                self.engine.close_conn (client.r_conn)
-                return
-            return self.engine.write_unblock (client.r_conn, data, __write_ok, self._on_err, cb_args=(client, ))
-
-        def __send_and_watch (client, data):
-            self.engine.watch_conn (client.cli_conn)
-            data = client.crypter_w.encrypt (data)
-            data = proto.pack_head (len (data)) + data
-            def __write_ok (conn, *args):
-                self.engine.watch_conn (conn)
-                return
-            return self.engine.write_unblock (client.r_conn, data, self.engine.watch_conn, self._on_err, cb_args=(client, ))
-            
-        buf = ""
-        _buf = ""
-        while True:
-            try:
-                _buf = cli_conn.sock.recv (4096)
-                if len(_buf) == 0:
-                    return __send_and_close (client, buf)
-                buf += _buf
-            except socket.error, e:
-                if e.args[0] == errno.EAGAIN:
-                    break
-                elif e.args[0] == errno.EINTR:
-                    continue
-                else:
-                    self.logger.debug ("client %s: %s" % (client.client_id, e))
-                    self.close_client(client)
-                    return
-        __send_and_watch (client, buf)
-
+        self.logger.debug ("client %s client readable" % (client.client_id))
+        self.stream_to_fix (cli_conn, client.r_conn, client)
 
 
     def _on_server_readable (self, r_conn, client):
-        def __server_head_err (r_conn, *args):
-            self.logger.debug ("client %s %s" % (client.client_id, r_conn.error))
-            self.close_client (client)
-            return
-        def __write_ok (conn, *args):
-            self.engine.watch_conn (client.cli_conn)
-            return
-        def __on_server_read (r_conn, *args):
-            try:
-                data = client.crypter_r.decrypt (r_conn.get_readbuf ())
-                self.engine.watch_conn (r_conn)
-                if client.cli_conn:
-                    self.engine.write_unblock (client.cli_conn, data, __write_ok, self._on_err, cb_args=(client, ))
-            except Exception, e:
-                self.logger.exception ("client %s: server response error %s" % (client.client_id, str(e)))
-                self.close_client(client)
-            return
-        self.engine.read_unblock (r_conn, self.head_len, self._on_recv_head, __server_head_err, 
-                cb_args=(__on_server_read, __server_head_err))
+        self.logger.debug ("client %s remote readable" % (client.client_id))
+        self.fix_to_stream (r_conn, client.cli_conn, client)
+
 
     def _on_server_connected (self, sock, client):
         self.logger.debug ("client %s connected to server" % (client.client_id))
@@ -204,22 +127,6 @@ class TransWarpClient (object):
             self.engine.read_unblock (r_conn, self.head_len, __on_read_head, self._on_err, cb_args=(client, ))
             return
         self.engine.write_unblock (r_conn, buf, __write_ok, self._on_err, cb_args=(client,))
-
-    def close_client (self, client):
-        if self.client_conn.has_key (client.client_id):
-            del self.client_conn[client.client_id]
-        if client.r_conn:
-            self.engine.close_conn (client.r_conn)
-            client.r_conn = None
-        if client.cli_conn:
-            self.engine.close_conn (client.cli_conn)
-            client.cli_conn = None
-        client.state = proto.ClientState.CLOSED
-        self.logger.info ("client %s closed" % (client.client_id))
-
-    def _close_client (self, conn, client):
-        self.close_client (client)
-
 
 
     def _connect_server (self, host, port, cli_conn):

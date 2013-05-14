@@ -80,6 +80,10 @@ class Connection (object):
                 self.sock.close ()
                 self.sock = None
 
+    @property
+    def is_open (self):
+        return self.status != ConnState.CLOSED
+
     def get_readbuf (self):
         return self.rd_buf
 
