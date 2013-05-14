@@ -101,14 +101,34 @@ class TransWarpClient (object):
         self.engine.read_unblock (conn, data_len, msg_cb, head_err_cb)
 
     def _on_client_readable (self, cli_conn, client):
+
+        def __send_and_close (client, data):
+            if not buf:
+                return self.close_client (client)
+            self.engine.close_conn (client.cli_conn)
+            data = client.crypter_w.encrypt (data)
+            data = proto.pack_head (len (data)) + data
+            def __write_ok (conn, *args):
+                self.engine.close_conn (client.r_conn)
+                return
+            return self.engine.write_unblock (client.r_conn, data, __write_ok, self._on_err, cb_args=(client, ))
+
+        def __send_and_watch (client, data):
+            self.engine.watch_conn (client.cli_conn)
+            data = client.crypter_w.encrypt (data)
+            data = proto.pack_head (len (data)) + data
+            def __write_ok (conn, *args):
+                self.engine.watch_conn (conn)
+                return
+            return self.engine.write_unblock (client.r_conn, data, self.engine.watch_conn, self._on_err, cb_args=(client, ))
+            
         buf = ""
         _buf = ""
-        data = ""
         while True:
             try:
                 _buf = cli_conn.sock.recv (4096)
-                if not _buf:
-                    break
+                if len(_buf) == 0:
+                    return __send_and_close (client, buf)
                 buf += _buf
             except socket.error, e:
                 if e.args[0] == errno.EAGAIN:
@@ -119,22 +139,7 @@ class TransWarpClient (object):
                     self.logger.debug ("client %s: %s" % (client.client_id, e))
                     self.close_client(client)
                     return
-        if buf:
-            data = client.crypter_w.encrypt (buf)
-            data = proto.pack_head (len (data)) + data
-        if not _buf:
-            if buf:
-                self.engine.close_conn (cli_conn)
-                client.cli_conn = None
-                return self.engine.write_unblock (client.r_conn, data, self._close_client, self._on_err, cb_args=(client,))
-            else:
-                return self.close_client (client)
-        else:
-            self.engine.watch_conn (cli_conn)
-            def __write_ok (conn, *args):
-                self.engine.watch_conn (client.r_conn)
-                return
-            return self.engine.write_unblock (client.r_conn, data, __write_ok, self._on_err, cb_args=(client, ))
+        __send_and_watch (client, buf)
 
 
 
