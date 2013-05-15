@@ -549,9 +549,15 @@ class SocketEngine (object):
         """ you need to call this in a loop, return fd numbers polled each time,
             timeout is in ms.
         """
-
-        #locking when poll may be prevent other thread to lock, but it's possible poll is not thread-safe, so we do the lazy approach
         __exec_callback = self._exec_callback
+        #locking when poll may be prevent other thread to lock, but it's possible poll is not thread-safe, so we do the lazy approach
+        self._lock ()
+        _pop = self._pending_fd_ops.popleft
+        while self._pending_fd_ops:
+            _cb = _pop ()
+            __exec_callback (_cb[0], (_cb[1],))
+        self._unlock ()
+
         hlist = self._poll.poll (timeout)
         for h in hlist:
             h[0] (*h[1])
@@ -560,13 +566,6 @@ class SocketEngine (object):
             while self._cbs:
                 _cb = _pop ()
                 __exec_callback (*_cb)
-
-        self._lock ()
-        _pop = self._pending_fd_ops.popleft
-        while self._pending_fd_ops:
-            _cb = _pop ()
-            __exec_callback (_cb[0], (_cb[1],))
-        self._unlock ()
 
         if self._checktimeout_inv > 0 and time.time() - self._last_checktimeout > self._checktimeout_inv:
             self._check_timeout ()
