@@ -67,7 +67,7 @@ class Connection (object):
         """ idle_timeout_cb will be callbacked with (engein, conn, *readable_cb_args)
         """
         self.sock = sock
-        fd = self.sock.fileno()
+        self.fd = self.sock.fileno()
         if callable (readable_cb):
             self.readable_cb = readable_cb
             self.readable_cb_args = readable_cb_args or ()
