@@ -68,8 +68,8 @@ class TransWarpClient (TransWarpBase):
         buf = "%s%s\x00\x01%s" % (VER, status, self._sock5_server_id)
         def __write_ok (cli_conn, *args):
             if err_no == 0:
-                self.engine.put_sock (cli_conn.sock, readable_cb=self._on_client_readable, readable_cb_args=(client, ), idle_timeout_cb=self._on_idle)
-                self.engine.put_sock (client.r_conn.sock, readable_cb=self._on_server_readable, readable_cb_args=(client, ), idle_timeout_cb=self._on_err)
+                client.cli_conn.state = proto.ClientState.CONNECTED
+                self._check_client_state (client)
             else:
                 self.close_client (client)
             return
@@ -93,7 +93,6 @@ class TransWarpClient (TransWarpBase):
         buf = auth_data.serialize ()
         buf = proto.pack_head (len (buf)) + buf
         client.r_conn = r_conn
-        client.cli_state = proto.ClientState.CONNECTED
 
         def __on_remote_respond (r_conn, *args):
             resp = None
@@ -102,11 +101,14 @@ class TransWarpClient (TransWarpBase):
                 resp = proto.ServerResponse.deserialize (buf)
                 if resp.err_no:
                     self.logger.error ("client %s: %s %s" % (client.client_id, resp.err_no, resp.message))
+                    self.close_client(client)
+                else:
+                    client.r_state = proto.ClientState.CONNECTED 
+                    self._check_client_state (client)
             except Exception, e:
                 self.logger.exception ("client %s: server response error %s" % (client.client_id, str(e)))
                 self.close_client(client)
                 return
-            return self._send_sock5_reply (client, resp.err_no)
 
         def __on_read_head (r_conn, *args):
             data_len = 0
@@ -126,6 +128,7 @@ class TransWarpClient (TransWarpBase):
             self.engine.read_unblock (r_conn, self.head_len, __on_read_head, self._on_err, cb_args=(client, ))
             return
         self.engine.write_unblock (r_conn, buf, __write_ok, self._on_err, cb_args=(client,))
+        return self._send_sock5_reply (client, 0)
 
 
     def _connect_server (self, host, port, cli_conn):
@@ -136,8 +139,7 @@ class TransWarpClient (TransWarpBase):
         self.client_conn[client.client_id] = client
         def __on_connect_error (err, *args):
             self.logger.error ("client %s cannot connect to server, %s" % (client.client_id, str(err)))
-            self.close_client (client)
-            return
+            return self._send_sock5_reply (client, errno.EHOSTUNREACH)
         self.engine.connect_unblock (self.server_addr, self._on_server_connected, __on_connect_error, cb_args=(client, ))
 
     def _sock5_handshake (self, sock):

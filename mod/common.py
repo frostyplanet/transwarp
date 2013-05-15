@@ -31,6 +31,15 @@ class TransWarpBase (object):
             return
         self.engine.read_unblock (conn, data_len, msg_cb, head_err_cb)
 
+    def _check_client_state (self, client):
+        if client.cli_state == proto.ClientState.CONNECTED and client.r_state == proto.ClientState.CONNECTED:
+            self.engine.put_sock (client.cli_conn.sock, readable_cb=self._on_client_readable, readable_cb_args=(client,), 
+                    idle_timeout_cb=self._on_idle)
+            self.engine.put_sock (client.r_conn.sock, readable_cb=self._on_remote_readable, readable_cb_args=(client,),
+                    idle_timeout_cb=self._on_idle)
+            self.logger.info ("client %s establish both connection" % (client.client_id))
+
+
     def loop (self):
         while self.is_running:
             self.engine.poll (timeout=10)

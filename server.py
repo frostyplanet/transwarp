@@ -72,7 +72,7 @@ class TransWarpServer (TransWarpBase):
 
 
     def _on_client_readable (self, cli_conn, client):
-#        self.logger.debug ("client %s readable" % (client.client_id))
+        self.logger.debug ("client %s readable" % (client.client_id))
         self.fix_to_stream (cli_conn, client.r_conn, client)
 
     def _on_remote_conn (self, sock, client):
