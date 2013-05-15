@@ -2,6 +2,7 @@
 # coding:utf-8
 
 from lib.socket_engine import TCPSocketEngine, Connection
+import lib.io_poll as io_poll
 from lib.log import Log
 import config_client as config
 import mod.proto as proto
@@ -44,6 +45,10 @@ class TransWarpClient (TransWarpBase):
         self.engine.unlisten (self.sock5_sock)
         self.is_running = False
 
+    def loop (self):
+        while self.is_running:
+            self.engine.poll ()
+
     def _send_sock5_unsupport (self, conn):
         buf = "%s%s\x00\x01%s" % (VER, "\x07", self._sock5_server_id)
         def __write_ok (conn):
@@ -73,17 +78,17 @@ class TransWarpClient (TransWarpBase):
         self.engine.write_unblock (client.cli_conn, buf, __write_ok, self._on_err, cb_args=(client,))
 
     def _on_client_readable (self, cli_conn, client):
-#        self.logger.debug ("client %s client readable" % (client.client_id))
+        self.logger.debug ("client %s client readable" % (client.client_id))
         self.stream_to_fix (cli_conn, client.r_conn, client)
 
 
     def _on_server_readable (self, r_conn, client):
-#        self.logger.debug ("client %s remote readable" % (client.client_id))
+        self.logger.debug ("client %s remote readable" % (client.client_id))
         self.fix_to_stream (r_conn, client.cli_conn, client)
 
 
     def _on_server_connected (self, sock, client):
-        self.logger.info ("client %s connected to server" % (client.client_id))
+        self.logger.debug ("client %s connected to server" % (client.client_id))
         r_conn = Connection (sock)
         _hash = proto.myhash (client.seed, self.key)
         auth_data = proto.AuthData (client.seed, _hash, self.key, client.r_host, client.r_port)
@@ -97,8 +102,7 @@ class TransWarpClient (TransWarpBase):
             try:
                 buf = client.crypter_r.decrypt (r_conn.get_readbuf())
                 resp = proto.ServerResponse.deserialize (buf)
-                if resp.err_no:
-                    self.logger.error ("client %s: remote errno %s %s" % (client.client_id, resp.err_no, resp.message))
+                self.logger.info ("client %s: %s %s" % (client.client_id, resp.err_no, resp.message))
             except Exception, e:
                 self.logger.exception ("client %s: server response error %s" % (client.client_id, str(e)))
                 self.close_client(client)
@@ -138,7 +142,7 @@ class TransWarpClient (TransWarpBase):
         self.engine.connect_unblock (self.server_addr, self._on_server_connected, __on_connect_error, cb_args=(client, ))
 
     def _sock5_handshake (self, sock):
-#        self.logger.debug ("handshake")
+        self.logger.debug ("handshake")
         conn = Connection (sock)
         def __on_ipv6_read (conn):
             self._send_sock5_unsupport (conn)

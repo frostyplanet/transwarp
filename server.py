@@ -2,6 +2,7 @@
 # coding:utf-8
 
 from lib.socket_engine import TCPSocketEngine, Connection
+import lib.io_poll as io_poll
 from lib.log import Log
 import mod.proto as proto
 import mod.crypter as crypter
@@ -49,12 +50,12 @@ class TransWarpServer (TransWarpBase):
         self.engine.connect_unblock ((client.r_host, client.r_port), self._on_remote_conn, self._on_remote_conn_err, cb_args=(client, ))
 
     def _on_remote_readable (self, r_conn, client):
-        #self.logger.debug ("remote %s readable" % (client.client_id))
+        self.logger.debug ("remote %s readable" % (client.client_id))
         self.stream_to_fix (r_conn, client.cli_conn, client)
 
 
     def _on_client_readable (self, cli_conn, client):
-        #self.logger.debug ("client %s readable" % (client.client_id))
+        self.logger.debug ("client %s readable" % (client.client_id))
         self.fix_to_stream (cli_conn, client.r_conn, client)
 
     def _on_remote_conn (self, sock, client):
@@ -65,7 +66,7 @@ class TransWarpServer (TransWarpBase):
         resp = proto.ServerResponse (0, "")
         buf = client.crypter_w.encrypt (resp.serialize ())
         def _write_ok (cli_conn, *args):
-            #self.logger.debug ("client %s remote conn resp" % (client.client_id))
+            self.logger.debug ("client %s remote conn resp" % (client.client_id))
             self.engine.put_sock (cli_conn.sock, readable_cb=self._on_client_readable, readable_cb_args=(client,), 
                     idle_timeout_cb=self._on_idle)
             return
@@ -95,6 +96,10 @@ class TransWarpServer (TransWarpBase):
             self.engine.unlisten (self.passive_sock)
         self.is_running = False
         self.logger.info ("stopped")
+
+    def loop (self):
+        while self.is_running:
+            self.engine.poll ()
 
 stop_signal_flag = False
 def main ():
