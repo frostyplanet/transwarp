@@ -102,7 +102,8 @@ class TransWarpClient (TransWarpBase):
             try:
                 buf = client.crypter_r.decrypt (r_conn.get_readbuf())
                 resp = proto.ServerResponse.deserialize (buf)
-                self.logger.info ("client %s: %s %s" % (client.client_id, resp.err_no, resp.message))
+                if resp.err_no:
+                    self.logger.error ("client %s: remote errno %s %s" % (client.client_id, resp.err_no, resp.message))
             except Exception, e:
                 self.logger.exception ("client %s: server response error %s" % (client.client_id, str(e)))
                 self.close_client(client)

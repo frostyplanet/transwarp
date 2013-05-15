@@ -35,7 +35,7 @@ class TransWarpBase (object):
 
 
     def _on_err (self, conn, client):
-        self.logger.error ("peer %s %s" % (conn.peer, conn.error))
+        self.logger.error ("client %s: peer %s %s" % (client.client_id, conn.peer, conn.error))
         self.close_client (client)
 
     def _on_idle (self, conn, client):
@@ -72,11 +72,15 @@ class TransWarpBase (object):
         def __send_and_watch (client, data):
             if stream_conn.is_open:
                 self.engine.watch_conn (stream_conn)
+            else:
+                self.logger.debug ("client %s: conn close ?" % (client.client_id))
             data = client.crypter_w.encrypt (data)
             data = proto.pack_head (len (data)) + data
             def __write_ok (conn, *args):
                 if fix_conn.is_open:
                     self.engine.watch_conn (fix_conn)
+                else:
+                    self.logger.debug ("client %s: conn close ?" % (client.client_id))
                 return
             return self.engine.write_unblock (fix_conn, data, __write_ok, self._on_err, cb_args=(client, ))
             
@@ -94,7 +98,7 @@ class TransWarpBase (object):
                 elif e.args[0] == errno.EINTR:
                     continue
                 else:
-                    self.logger.debug ("client %s: %s" % (client.client_id, e))
+                    self.logger.error ("client %s: %s" % (client.client_id, e))
                     self.close_client(client)
                     return
         __send_and_watch (client, buf)
@@ -108,6 +112,8 @@ class TransWarpBase (object):
         def __write_ok (conn, *args):
             if stream_conn.is_open:
                 self.engine.watch_conn (stream_conn)
+            else:
+                self.logger.debug ("client %s: conn close ?" % (client.client_id))
             return
         def __on_fix_read (fix_conn, *args):
             try:
