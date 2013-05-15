@@ -361,6 +361,7 @@ class SocketEngine (object):
         """ return False to indicate need to reg conn into poll.
             return True to indicate no more to write, can be suc or fail.
             """
+        assert conn.status_wr
         _len = len (buf)
         _send = conn.sock.send
         offset = conn.wr_offset

@@ -120,7 +120,8 @@ class ClientState:
 class ClientData (object):
 
     def __init__ (self, r_host, r_port, cli_conn, seed, key, name=None):
-        self.state = ClientState.NEW
+        self.cli_state = ClientState.NEW
+        self.r_state = ClientState.NEW
         self.cli_conn = cli_conn
         self.r_conn = None
         self.r_host = r_host

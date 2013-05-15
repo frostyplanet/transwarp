@@ -47,8 +47,24 @@ class TransWarpServer (TransWarpBase):
         self.engine.remove_conn (cli_conn)
         self.client_conn[client.client_id] = client
         self.logger.info ("client %s auth" % (client.client_id))
-        client.state = proto.ClientState.CONNECTING
+        client.cli_state = proto.ClientState.CONNECTING
         self.engine.connect_unblock ((client.r_host, client.r_port), self._on_remote_conn, self._on_remote_conn_err, cb_args=(client, ))
+        resp = proto.ServerResponse (0, "")
+        buf = client.crypter_w.encrypt (resp.serialize ())
+        def _write_ok (cli_conn, *args):
+            client.cli_state = proto.ClientState.CONNECTED
+            self._check_client_state (client)
+            return
+        self.engine.write_unblock (client.cli_conn, proto.pack_head (len (buf)) + buf, _write_ok, self._on_err)
+
+    def _check_client_state (self, client):
+        if client.cli_state == proto.ClientState.CONNECTED and client.r_state == proto.ClientState.CONNECTED:
+            self.engine.put_sock (client.cli_conn.sock, readable_cb=self._on_client_readable, readable_cb_args=(client,), 
+                    idle_timeout_cb=self._on_idle)
+            self.engine.put_sock (client.r_conn.sock, readable_cb=self._on_remote_readable, readable_cb_args=(client,),
+                    idle_timeout_cb=self._on_idle)
+            self.logger.info ("client %s establish both connection" % (client.client_id))
+
 
     def _on_remote_readable (self, r_conn, client):
         print "remote %s readable" % (client.client_id)
@@ -60,18 +76,10 @@ class TransWarpServer (TransWarpBase):
         self.fix_to_stream (cli_conn, client.r_conn, client)
 
     def _on_remote_conn (self, sock, client):
-        client.state = proto.ClientState.CONNECTED
-        self.logger.info ("client %s connected" % (client.client_id))
-        client.r_conn = self.engine.put_sock (sock, readable_cb=self._on_remote_readable, readable_cb_args=(client,),
-                idle_timeout_cb=self._on_idle)
-        resp = proto.ServerResponse (0, "")
-        buf = client.crypter_w.encrypt (resp.serialize ())
-        def _write_ok (cli_conn, *args):
-            self.engine.put_sock (cli_conn.sock, readable_cb=self._on_client_readable, readable_cb_args=(client,), 
-                    idle_timeout_cb=self._on_idle)
-            return
-        self.engine.write_unblock (client.cli_conn, proto.pack_head (len (buf)) + buf, _write_ok, self._on_err)
-        
+        client.r_state = proto.ClientState.CONNECTED
+        client.r_conn = Connection (sock)
+        self._check_client_state (client)
+
 
     def _on_remote_conn_err (self, error, client):
         self.logger.warn ("client %s: connection failed, %s" % (client.client_id, str(error)))
