@@ -215,7 +215,6 @@ class SocketEngine (object):
 
     def _accept_conn (self, sock, readable_cb, readable_cb_args, idle_timeout_cb, new_conn_cb):
         """ socket will set FD_CLOEXEC upon accepted """
-        print "aaaaaaaaaaaaaa"
         _accept = sock.accept
         _put_sock = self._put_sock
         while True: 
@@ -496,7 +495,6 @@ class SocketEngine (object):
             if conn.status_rd == ConnState.IDLE and self._idle_timeout > 0 and inact_time > self._idle_timeout:
                 if callable (conn.idle_timeout_cb):
                     conn.error = socket.timeout ("idle timeout")
-                    print "timeout"
                     conn.idle_timeout_cb (conn, *conn.readable_cb_args)
                 self._close_conn (conn)
             elif conn.status_rd == ConnState.TOREAD and self._rw_timeout > 0 and inact_time > self._rw_timeout:
