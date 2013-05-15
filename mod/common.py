@@ -33,7 +33,7 @@ class TransWarpBase (object):
 
 
     def _on_err (self, conn, client):
-        self.logger.error ("client %s: peer %s %s" % (conn.peer, conn.error))
+        self.logger.error ("client %s: peer %s %s" % (client.client_id, conn.peer, conn.error))
         self.close_client (client)
 
     def _on_idle (self, conn, client):
