@@ -89,6 +89,7 @@ class TransWarpBase (object):
                 return
             data = client.crypter_w.encrypt (data)
             data = proto.pack_head (len (data)) + data
+            self.engine.remove_conn (stream_conn)
             return self.engine.write_unblock (fix_conn, data, __write_ok, self._on_err, cb_args=(client, ))
             
         buf = ""
