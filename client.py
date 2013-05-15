@@ -46,9 +46,6 @@ class TransWarpClient (TransWarpBase):
         self.engine.unlisten (self.sock5_sock)
         self.is_running = False
 
-    def loop (self):
-        while self.is_running:
-            self.engine.poll ()
 
     def _send_sock5_unsupport (self, conn):
         buf = "%s%s\x00\x01%s" % (VER, "\x07", self._sock5_server_id)

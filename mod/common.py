@@ -31,6 +31,9 @@ class TransWarpBase (object):
             return
         self.engine.read_unblock (conn, data_len, msg_cb, head_err_cb)
 
+    def loop (self):
+        while self.is_running:
+            self.engine.poll (timeout=10)
 
     def _on_err (self, conn, client):
         self.logger.error ("client %s: peer %s %s" % (client.client_id, conn.peer, conn.error))
@@ -67,17 +70,19 @@ class TransWarpBase (object):
             return self.engine.write_unblock (fix_conn, data, __write_ok, self._on_err, cb_args=(client, ))
 
         def __send_and_watch (client, data):
-            self.engine.watch_conn (stream_conn)
+            def __write_ok (conn, *args):
+                self.engine.watch_conn (stream_conn)
+                return
             data = client.crypter_w.encrypt (data)
             data = proto.pack_head (len (data)) + data
-            return self.engine.write_unblock (fix_conn, data, None, self._on_err, cb_args=(client, ))
+            return self.engine.write_unblock (fix_conn, data, __write_ok, self._on_err, cb_args=(client, ))
             
         buf = ""
         _buf = ""
         try:
             while True:
                 try:
-                    _buf = stream_conn.sock.recv (2048)
+                    _buf = stream_conn.sock.recv (4096)
                     if len(_buf) == 0:
                         return __send_and_close (client, buf)
                     buf += _buf
@@ -102,11 +107,13 @@ class TransWarpBase (object):
                 self.logger.error ("client %s %s" % (client.client_id, fix_conn.error))
                 self.close_client (client)
                 return
+            def __write_ok (conn, *args):
+                self.engine.watch_conn (fix_conn)
+                return
             def __on_fix_read (fix_conn, *args):
                 try:
                     data = client.crypter_r.decrypt (fix_conn.get_readbuf ())
-                    self.engine.watch_conn (fix_conn)
-                    self.engine.write_unblock (stream_conn, data, None, self._on_err, cb_args=(client, ))
+                    self.engine.write_unblock (stream_conn, data, __write_ok, self._on_err, cb_args=(client, ))
                 except Exception, e:
                     self.logger.exception ("client %s: response error %s" % (client.client_id, str(e)))
                     self.close_client(client)

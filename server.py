@@ -97,10 +97,6 @@ class TransWarpServer (TransWarpBase):
         self.is_running = False
         self.logger.info ("stopped")
 
-    def loop (self):
-        while self.is_running:
-            self.engine.poll ()
-
 stop_signal_flag = False
 def main ():
     server = TransWarpServer ()
