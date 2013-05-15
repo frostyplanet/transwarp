@@ -25,7 +25,7 @@ class TransWarpBase (object):
         try:
             data_len = proto.unpack_head (conn.get_readbuf ())
         except Exception, e:
-            self.logger.exception (e)
+            conn.error = e
             if callable (head_err_cb):
                 head_err_cb (conn)
             return
@@ -68,15 +68,10 @@ class TransWarpBase (object):
             return self.engine.write_unblock (fix_conn, data, __write_ok, self._on_err, cb_args=(client, ))
 
         def __send_and_watch (client, data):
-            if stream_conn.is_open:
-                self.engine.watch_conn (stream_conn)
+            self.engine.watch_conn (stream_conn)
             data = client.crypter_w.encrypt (data)
             data = proto.pack_head (len (data)) + data
-            def __write_ok (conn, *args):
-                if fix_conn.is_open:
-                    self.engine.watch_conn (fix_conn)
-                return
-            return self.engine.write_unblock (fix_conn, data, __write_ok, self._on_err, cb_args=(client, ))
+            return self.engine.write_unblock (fix_conn, data, None, self._on_err, cb_args=(client, ))
             
         buf = ""
         _buf = ""
@@ -84,7 +79,7 @@ class TransWarpBase (object):
             while True:
                 try:
                     _buf = stream_conn.sock.recv (2048)
-                    if not _buf:
+                    if len(_buf) == 0:
                         return __send_and_close (client, buf)
                     buf += _buf
                 except socket.error, e:
@@ -93,7 +88,7 @@ class TransWarpBase (object):
                     elif e.args[0] == errno.EINTR:
                         continue
                     else:
-                        self.logger.debug ("client %s: %s" % (client.client_id, e))
+                        self.logger.error ("client %s: %s" % (client.client_id, e))
                         self.close_client(client)
                         return
             __send_and_watch (client, buf)
@@ -105,18 +100,14 @@ class TransWarpBase (object):
     def fix_to_stream (self, fix_conn, stream_conn, client):
         try:
             def __head_err (fix_conn, *args):
-                self.logger.debug ("client %s %s" % (client.client_id, fix_conn.error))
+                self.logger.error ("client %s %s" % (client.client_id, fix_conn.error))
                 self.close_client (client)
-                return
-            def __write_ok (conn, *args):
-                if stream_conn.is_open:
-                    self.engine.watch_conn (stream_conn)
                 return
             def __on_fix_read (fix_conn, *args):
                 try:
                     data = client.crypter_r.decrypt (fix_conn.get_readbuf ())
                     self.engine.watch_conn (fix_conn)
-                    self.engine.write_unblock (stream_conn, data, __write_ok, self._on_err, cb_args=(client, ))
+                    self.engine.write_unblock (stream_conn, data, None, self._on_err, cb_args=(client, ))
                 except Exception, e:
                     self.logger.exception ("client %s: response error %s" % (client.client_id, str(e)))
                     self.close_client(client)
