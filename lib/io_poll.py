@@ -49,14 +49,20 @@ class Poll (object):
         data = self._handles.get (fd)
         if not data:
             return
-        if event == 'r' and data[1]: # write remains
-            self._poll.modify (fd, self._out)
-            data[0] = None
-            return
-        elif event == 'w' and data[0]: # read remains
-            self._poll.modify (fd, self._in)
-            data[1] = None
-            return
+        if event == 'r':
+            if not data[0]:
+                return
+            if data[1]: # write remains
+                self._poll.modify (fd, self._out)
+                data[0] = None
+                return
+        elif event == 'w':
+            if not data[1]:
+                return
+            if data[0]:
+                self._poll.modify (fd, self._in)
+                data[1] = None
+                return
         try:
             del self._handles[fd]
             self._poll.unregister (fd)
@@ -105,7 +111,7 @@ if 'epoll' in dir(select):
         _out = select.EPOLLOUT
         _in_real = select.EPOLLIN | select.EPOLLRDBAND | select.EPOLLPRI | select.EPOLLHUP | select.EPOLLERR
         _out_real = select.EPOLLOUT | select.EPOLLWRBAND | select.EPOLLHUP | select.EPOLLERR 
-        _timeout_scal = 1000.0
+        _timeout_scale = 1000.0
 
         def __init__ (self, is_edge=True):
             self.is_edge = is_edge

@@ -14,12 +14,12 @@ class TransWarpBase (object):
     logger = None
 
     def __init__ (self):
-        self.engine = TCPSocketEngine (io_poll.get_poll(), is_blocking=False)
+        self.engine = TCPSocketEngine (io_poll.Poll(), is_blocking=False)
         self.client_conn = dict () # 
         self.head_len = proto.head_len ()
         self.is_running = False
         self.engine.set_logger (self.logger)
-        self.engine.set_timeout (rw_timeout=60, idle_timeout=600)
+        self.engine.set_timeout (rw_timeout=120, idle_timeout=600)
 
     def _on_recv_head (self, conn, msg_cb, head_err_cb=None):
         assert callable (msg_cb)
@@ -70,26 +70,17 @@ class TransWarpBase (object):
             return self.engine.write_unblock (fix_conn, data, __write_ok, self._on_err, cb_args=(client, ))
 
         def __send_and_watch (client, data):
-            if stream_conn.is_open:
-                self.engine.watch_conn (stream_conn)
-            else:
-                self.logger.debug ("client %s: conn close ?" % (client.client_id))
+            self.engine.watch_conn (stream_conn)
             data = client.crypter_w.encrypt (data)
             data = proto.pack_head (len (data)) + data
-            def __write_ok (conn, *args):
-                if fix_conn.is_open:
-                    self.engine.watch_conn (fix_conn)
-                else:
-                    self.logger.debug ("client %s: conn close ?" % (client.client_id))
-                return
-            return self.engine.write_unblock (fix_conn, data, __write_ok, self._on_err, cb_args=(client, ))
+            return self.engine.write_unblock (fix_conn, data, None, self._on_err, cb_args=(client, ))
             
         buf = ""
         _buf = ""
         while True:
             try:
-                _buf = stream_conn.sock.recv (2048)
-                if not _buf:
+                _buf = stream_conn.sock.recv (1024)
+                if len(_buf) == 0:
                     return __send_and_close (client, buf)
                 buf += _buf
             except socket.error, e:
@@ -106,26 +97,27 @@ class TransWarpBase (object):
 
     def fix_to_stream (self, fix_conn, stream_conn, client):
         def __head_err (fix_conn, *args):
-            self.logger.debug ("client %s %s" % (client.client_id, fix_conn.error))
+            self.logger.debug ("client %s head err %s" % (client.client_id, fix_conn.error))
             self.close_client (client)
             return
         def __write_ok (conn, *args):
-            if stream_conn.is_open:
-                self.engine.watch_conn (stream_conn)
-            else:
-                self.logger.debug ("client %s: conn close ?" % (client.client_id))
             return
         def __on_fix_read (fix_conn, *args):
             try:
                 data = client.crypter_r.decrypt (fix_conn.get_readbuf ())
                 self.engine.watch_conn (fix_conn)
-                self.engine.write_unblock (stream_conn, data, __write_ok, self._on_err, cb_args=(client, ))
+                self.engine.write_unblock (stream_conn, data, None, self._on_err, cb_args=(client, ))
             except Exception, e:
                 self.logger.exception ("client %s: response error %s" % (client.client_id, str(e)))
                 self.close_client(client)
             return
         self.engine.read_unblock (fix_conn, self.head_len, self._on_recv_head, __head_err, 
                 cb_args=(__on_fix_read, __head_err))
+
+    def loop (self):
+        while self.is_running:
+            self.engine.poll (timeout=10)
+
 
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4 :

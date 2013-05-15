@@ -2,7 +2,6 @@
 # coding:utf-8
 
 from lib.socket_engine import TCPSocketEngine, Connection
-import lib.io_poll as io_poll
 from lib.log import Log
 import config_client as config
 import mod.proto as proto
@@ -44,10 +43,6 @@ class TransWarpClient (TransWarpBase):
             return
         self.engine.unlisten (self.sock5_sock)
         self.is_running = False
-
-    def loop (self):
-        while self.is_running:
-            self.engine.poll ()
 
     def _send_sock5_unsupport (self, conn):
         buf = "%s%s\x00\x01%s" % (VER, "\x07", self._sock5_server_id)

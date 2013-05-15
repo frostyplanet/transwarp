@@ -2,7 +2,6 @@
 # coding:utf-8
 
 from lib.socket_engine import TCPSocketEngine, Connection
-import lib.io_poll as io_poll
 from lib.log import Log
 import mod.proto as proto
 import mod.crypter as crypter
@@ -96,10 +95,6 @@ class TransWarpServer (TransWarpBase):
             self.engine.unlisten (self.passive_sock)
         self.is_running = False
         self.logger.info ("stopped")
-
-    def loop (self):
-        while self.is_running:
-            self.engine.poll ()
 
 stop_signal_flag = False
 def main ():
