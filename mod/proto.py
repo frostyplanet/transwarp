@@ -10,6 +10,8 @@ import random
 class PackError (Exception):
     pass
 
+MAGIC = 0xdf358
+
 def myhash (s, key):
     _md5 = hashlib.md5 ()
     _md5.update (s + key)
@@ -19,10 +21,12 @@ def head_len ():
     return struct.calcsize ('!L')
 
 def pack_head (length):
-    return struct.pack ('!L', length)
+    return struct.pack ('!IL', MAGIC, length)
 
 def unpack_head (byte):
-    (length, ) = struct.unpack("!L", byte)
+    (magic, length, ) = struct.unpack("!IL", byte)
+    if magic != MAGIC:
+        raise Exception ("head invalid")
     return length
 
 def random_string (n):

@@ -136,6 +136,7 @@ class SocketEngine (object):
             self._checktimeout_inv = 0
 
     def set_logger (self, logger):
+        assert logger
         self.logger = logger
 
     def log_error (self, msg):
@@ -373,7 +374,6 @@ class SocketEngine (object):
                 offset += res
             except self._error_exceptions, e:
                 if e[0] in self._eagain_errno:
-                    print "write"
                     conn.wr_offset = offset
                     conn.last_ts = self.get_time ()
                     return False#return and poll for next trigger

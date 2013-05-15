@@ -24,6 +24,7 @@ class TransWarpClient (TransWarpBase):
     def __init__ (self):
         TransWarpBase.__init__ (self)
         self.logger = Log ("client", config=config)
+        self.engine.set_logger (self.logger)
         self.sock5_addr = config.SOCK5_ADDR
         ip = self.sock5_addr[0]
         arr = map (lambda x:chr(int(x)), ip.split ("."))

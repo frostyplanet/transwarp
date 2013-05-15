@@ -21,6 +21,7 @@ class TransWarpServer (TransWarpBase):
     def __init__ (self):
         TransWarpBase.__init__ (self)
         self.logger = Log ("server", config=config)
+        self.engine.set_logger (self.logger)
         self.addr = config.SERVER_ADDR
         self.auth_keys = config.ACCEPT_KEYS
         self.passive_sock = None
