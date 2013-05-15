@@ -413,6 +413,7 @@ class SocketEngine (object):
         conn.read_cb_args = cb_args
         conn.read_err_cb = err_cb
         conn.read_tb = self._debug and traceback.extract_stack ()[0:-1] or None
+        conn.stack_count += 2
         if not self._do_unblock_read (conn, ok_cb):
             conn.last_ts = self.get_time ()
             self._lock ()
@@ -439,6 +440,7 @@ class SocketEngine (object):
         conn.read_cb_args = cb_args
         conn.read_err_cb = err_cb
         conn.read_tb = self._debug and traceback.extract_stack ()[0:-1] or None
+        conn.stack_count += 2
         if not self._do_unblock_readline (conn, ok_cb, max_len):
             conn.last_ts = self.get_time ()
             self._lock ()
@@ -465,6 +467,7 @@ class SocketEngine (object):
         conn.write_cb_args = cb_args
         if self._debug:
             conn.write_tb = traceback.extract_stack ()[0:-1]
+        conn.stack_count += 2
         if not self._do_unblock_write (conn, buf, ok_cb):
             conn.last_ts = self.get_time ()
             self._lock ()
@@ -512,7 +515,7 @@ class SocketEngine (object):
 
 
     def _exec_callback (self, cb, args, stack=None, count=0):
-        if count < 4:
+        if count < 5:
             try:
                 cb (*args)
             except Exception, e:

@@ -11,6 +11,7 @@ class PackError (Exception):
     pass
 
 MAGIC = 0xdf358
+FORMAT = "!IL"
 
 def myhash (s, key):
     _md5 = hashlib.md5 ()
@@ -18,13 +19,13 @@ def myhash (s, key):
     return _md5.hexdigest ()
 
 def head_len ():
-    return struct.calcsize ('!L')
+    return struct.calcsize (FORMAT)
 
 def pack_head (length):
-    return struct.pack ('!IL', MAGIC, length)
+    return struct.pack (FORMAT, MAGIC, length)
 
 def unpack_head (byte):
-    (magic, length, ) = struct.unpack("!IL", byte)
+    (magic, length, ) = struct.unpack(FORMAT, byte)
     if magic != MAGIC:
         raise Exception ("head invalid")
     return length
