@@ -56,10 +56,6 @@ class Connection (object):
     stack_count = 0
     error = None
 
-    def fd (self):
-        return self.sock.fileno()
-    fd = property (fd)
-
     def peer (self):
         try:
             return self.sock.getpeername ()
@@ -71,6 +67,7 @@ class Connection (object):
         """ idle_timeout_cb will be callbacked with (engein, conn, *readable_cb_args)
         """
         self.sock = sock
+        fd = self.sock.fileno()
         if callable (readable_cb):
             self.readable_cb = readable_cb
             self.readable_cb_args = readable_cb_args or ()
