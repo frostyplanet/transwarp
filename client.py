@@ -68,9 +68,11 @@ class TransWarpClient (TransWarpBase):
         buf = "%s%s\x00\x01%s" % (VER, status, self._sock5_server_id)
         def __write_ok (cli_conn, *args):
             if err_no == 0:
-                client.cli_conn.state = proto.ClientState.CONNECTED
+                self.logger.info ("client %s: sent sock5 response" % (client.client_id))
+                client.cli_state = proto.ClientState.CONNECTED
                 self._check_client_state (client)
             else:
+                self.logger.info ("client %s: sent sock5 err response and close" % (client.client_id))
                 self.close_client (client)
             return
         self.engine.write_unblock (client.cli_conn, buf, __write_ok, self._on_err, cb_args=(client,))
@@ -80,7 +82,7 @@ class TransWarpClient (TransWarpBase):
         self.stream_to_fix (cli_conn, client.r_conn, client)
 
 
-    def _on_server_readable (self, r_conn, client):
+    def _on_remote_readable (self, r_conn, client):
 #        self.logger.debug ("client %s remote readable" % (client.client_id))
         self.fix_to_stream (r_conn, client.cli_conn, client)
 
@@ -103,6 +105,7 @@ class TransWarpClient (TransWarpBase):
                     self.logger.error ("client %s: %s %s" % (client.client_id, resp.err_no, resp.message))
                     self.close_client(client)
                 else:
+                    self.logger.info ("client %s server response" % (client.client_id))
                     client.r_state = proto.ClientState.CONNECTED 
                     self._check_client_state (client)
             except Exception, e:
