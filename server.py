@@ -28,7 +28,7 @@ class TransWarpServer (TransWarpBase):
 
     def _new_client (self, sock):
         conn = Connection (sock)
-        self.logger.debug ("new %s" % (str(conn.peer)))
+        print "new %s" % (str(conn.peer))
         self.engine.read_unblock (conn, self.head_len, self._on_recv_head, None, cb_args=(self._auth, ))
 
 
@@ -51,12 +51,12 @@ class TransWarpServer (TransWarpBase):
         self.engine.connect_unblock ((client.r_host, client.r_port), self._on_remote_conn, self._on_remote_conn_err, cb_args=(client, ))
 
     def _on_remote_readable (self, r_conn, client):
-        self.logger.debug ("remote %s readable" % (client.client_id))
+        print "remote %s readable" % (client.client_id)
         self.stream_to_fix (r_conn, client.cli_conn, client)
 
 
     def _on_client_readable (self, cli_conn, client):
-        self.logger.debug ("client %s readable" % (client.client_id))
+        print "client %s readable" % (client.client_id)
         self.fix_to_stream (cli_conn, client.r_conn, client)
 
     def _on_remote_conn (self, sock, client):
@@ -67,7 +67,6 @@ class TransWarpServer (TransWarpBase):
         resp = proto.ServerResponse (0, "")
         buf = client.crypter_w.encrypt (resp.serialize ())
         def _write_ok (cli_conn, *args):
-            self.logger.debug ("client %s remote conn resp" % (client.client_id))
             self.engine.put_sock (cli_conn.sock, readable_cb=self._on_client_readable, readable_cb_args=(client,), 
                     idle_timeout_cb=self._on_idle)
             return
