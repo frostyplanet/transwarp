@@ -79,17 +79,17 @@ class TransWarpClient (TransWarpBase):
         self.engine.write_unblock (client.cli_conn, buf, __write_ok, self._on_err, cb_args=(client,))
 
     def _on_client_readable (self, cli_conn, client):
-        self.logger.debug ("client %s client readable" % (client.client_id))
+        print "client %s client readable" % (client.client_id)
         self.stream_to_fix (cli_conn, client.r_conn, client)
 
 
     def _on_server_readable (self, r_conn, client):
-        self.logger.debug ("client %s remote readable" % (client.client_id))
+        print "client %s remote readable" % (client.client_id)
         self.fix_to_stream (r_conn, client.cli_conn, client)
 
 
     def _on_server_connected (self, sock, client):
-        self.logger.debug ("client %s connected to server" % (client.client_id))
+        self.logger.info ("client %s connected to server" % (client.client_id))
         r_conn = Connection (sock)
         _hash = proto.myhash (client.seed, self.key)
         auth_data = proto.AuthData (client.seed, _hash, self.key, client.r_host, client.r_port)
@@ -103,7 +103,8 @@ class TransWarpClient (TransWarpBase):
             try:
                 buf = client.crypter_r.decrypt (r_conn.get_readbuf())
                 resp = proto.ServerResponse.deserialize (buf)
-                self.logger.info ("client %s: %s %s" % (client.client_id, resp.err_no, resp.message))
+                if resp.err_no:
+                    self.logger.error ("client %s: %s %s" % (client.client_id, resp.err_no, resp.message))
             except Exception, e:
                 self.logger.exception ("client %s: server response error %s" % (client.client_id, str(e)))
                 self.close_client(client)
@@ -131,7 +132,7 @@ class TransWarpClient (TransWarpBase):
 
 
     def _connect_server (self, host, port, cli_conn):
-        self.logger.debug ("connecting server %s for %s:%s" % (self.server_addr, host, port))
+        #self.logger.debug ("connecting server %s for %s:%s" % (self.server_addr, host, port))
         self.engine.remove_conn (cli_conn)
         seed = proto.random_string (16)
         client = proto.ClientData (host, port, cli_conn, seed, self.key)
@@ -143,7 +144,6 @@ class TransWarpClient (TransWarpBase):
         self.engine.connect_unblock (self.server_addr, self._on_server_connected, __on_connect_error, cb_args=(client, ))
 
     def _sock5_handshake (self, sock):
-        self.logger.debug ("handshake")
         conn = Connection (sock)
         def __on_ipv6_read (conn):
             self._send_sock5_unsupport (conn)
@@ -185,7 +185,6 @@ class TransWarpClient (TransWarpBase):
             else:
                 self._send_sock5_unsupport (conn)
         def __cb2 (conn):
-            print "cb2"
             return self.engine.read_unblock (conn, 4, __on_auth_type_read)
         def __cb1 (conn):
             return self.engine.write_unblock (conn, VER + METHOD, __cb2)
