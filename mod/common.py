@@ -38,6 +38,10 @@ class TransWarpBase (object):
             self.engine.put_sock (client.r_conn.sock, readable_cb=self._on_remote_readable, readable_cb_args=(client,),
                     idle_timeout_cb=self._on_idle)
             self.logger.info ("client %s establish both connection" % (client.client_id))
+        elif client.cli_state == proto.ClientState.CONNECTED:
+            self.engine.remove_conn (client.cli_conn)
+        elif client.r_state == proto.ClientState.CONNECTED:
+            self.engine.remove_conn (client.r_conn)
 
 
     def loop (self):
@@ -122,6 +126,7 @@ class TransWarpBase (object):
                 return
             def __on_fix_read (fix_conn, *args):
                 try:
+                    self.engine.remove_conn (fix_conn)
                     data = client.crypter_r.decrypt (fix_conn.get_readbuf ())
                     self.engine.write_unblock (stream_conn, data, __write_ok, self._on_err, cb_args=(client, ))
                 except Exception, e:
