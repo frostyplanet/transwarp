@@ -365,6 +365,7 @@ class SocketEngine (object):
         _len = len (buf)
         _send = conn.sock.send
         offset = conn.wr_offset
+        count = 0
         while offset < _len:
             try:
                 res = _send (buffer (buf, offset))
@@ -374,6 +375,9 @@ class SocketEngine (object):
                 offset += res
             except self._error_exceptions, e:
                 if e[0] in self._eagain_errno:
+                    if count < 3:
+                        count += 1
+                        continue
                     conn.wr_offset = offset
                     conn.last_ts = self.get_time ()
                     return False#return and poll for next trigger
