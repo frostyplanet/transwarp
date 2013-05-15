@@ -33,7 +33,7 @@ class TransWarpBase (object):
 
 
     def _on_err (self, conn, client):
-        self.logger.error ("peer %s %s" % (conn.peer, conn.error))
+        self.logger.error ("client %s: peer %s %s" % (conn.peer, conn.error))
         self.close_client (client)
 
     def _on_idle (self, conn, client):
@@ -48,7 +48,6 @@ class TransWarpBase (object):
         if client.cli_conn.is_open:
             self.engine.close_conn (client.cli_conn)
         client.state = proto.ClientState.CLOSED
-        self.logger.info ("client %s closed" % (client.client_id))
 
     def _close_client (self, conn, client):
         self.close_client (client)
