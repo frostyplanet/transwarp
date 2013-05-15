@@ -179,7 +179,10 @@ class SocketEngine (object):
         conn.status_rd = ConnState.IDLE
         conn.stack_count = 0
         if callable (conn.readable_cb):
-            self._poll.register (conn.fd, 'r', conn.readable_cb, (conn, ) + conn.readable_cb_args)
+            try:
+                self._poll.register (conn.fd, 'r', conn.readable_cb, (conn, ) + conn.readable_cb_args)
+            except Exception, e:
+                self.logger.error ("peer %s: watch conn error %s" % (conn.peer, str(e)))
 
 
     def remove_conn (self, conn):
@@ -191,11 +194,12 @@ class SocketEngine (object):
     def _remove_conn (self, conn):
         conn.status_rd = ConnState.EXTENDED_USING
         fd = conn.fd
-        self._poll.unregister (fd, 'r')
-        try:
+        if self._sock_dict.has_key (fd):
             del self._sock_dict[fd]
-        except KeyError:
-            pass
+        try:
+            self._poll.unregister (fd, 'r')
+        except Exception, e:
+            self.logger.exception ("peer %s: %s" % (conn.peer, str(e)))
 
     def close_conn (self, conn):
         """ remove an close connection """

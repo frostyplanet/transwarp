@@ -67,12 +67,12 @@ class TransWarpServer (TransWarpBase):
 
 
     def _on_remote_readable (self, r_conn, client):
-        print "remote %s readable" % (client.client_id)
+#        self.logger.debug ("remote %s readable" % (client.client_id))
         self.stream_to_fix (r_conn, client.cli_conn, client)
 
 
     def _on_client_readable (self, cli_conn, client):
-        print "client %s readable" % (client.client_id)
+#        self.logger.debug ("client %s readable" % (client.client_id))
         self.fix_to_stream (cli_conn, client.r_conn, client)
 
     def _on_remote_conn (self, sock, client):
@@ -80,15 +80,9 @@ class TransWarpServer (TransWarpBase):
         client.r_conn = Connection (sock)
         self._check_client_state (client)
 
-
     def _on_remote_conn_err (self, error, client):
         self.logger.warn ("client %s: connection failed, %s" % (client.client_id, str(error)))
-        resp = proto.ServerResponse (error.args[0], error.args[1])
-        buf = client.crypter_w.encrypt (resp.serialize ())
-        def _write_ok (cli_conn, *args):
-            self.close_client (client)
-            return
-        self.engine.write_unblock (client.cli_conn, proto.pack_head (len (buf)) + buf, _write_ok, self._on_err)
+        self.close_client (client)
 
     def start (self): 
         if self.is_running:

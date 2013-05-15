@@ -14,11 +14,11 @@ class TransWarpBase (object):
     logger = None
 
     def __init__ (self):
-        self.engine = TCPSocketEngine (io_poll.get_poll(), is_blocking=False)
+        self.engine = TCPSocketEngine (io_poll.get_poll(), is_blocking=False, debug=True)
         self.client_conn = dict () # 
         self.head_len = proto.head_len ()
         self.is_running = False
-        self.engine.set_timeout (rw_timeout=60, idle_timeout=600)
+        self.engine.set_timeout (rw_timeout=120, idle_timeout=600)
 
     def _on_recv_head (self, conn, msg_cb, head_err_cb=None):
         assert callable (msg_cb)
@@ -46,9 +46,9 @@ class TransWarpBase (object):
     def close_client (self, client):
         if self.client_conn.has_key (client.client_id):
             del self.client_conn[client.client_id]
-        if client.r_conn.is_open:
+        if client.r_conn and client.r_conn.is_open:
             self.engine.close_conn (client.r_conn)
-        if client.cli_conn.is_open:
+        if client.cli_conn and client.cli_conn.is_open:
             self.engine.close_conn (client.cli_conn)
         client.state = proto.ClientState.CLOSED
 
@@ -59,6 +59,7 @@ class TransWarpBase (object):
     def stream_to_fix (self, stream_conn, fix_conn, client):
 
         def __send_and_close (client, data):
+            self.logger.error ("client %s: peer close" % (client.client_id))
             if not data:
                 return self.close_client (client)
             self.engine.close_conn (stream_conn)
@@ -82,7 +83,7 @@ class TransWarpBase (object):
         try:
             while True:
                 try:
-                    _buf = stream_conn.sock.recv (4096)
+                    _buf = stream_conn.sock.recv (16 * 1024)
                     if len(_buf) == 0:
                         return __send_and_close (client, buf)
                     buf += _buf

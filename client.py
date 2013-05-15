@@ -76,12 +76,12 @@ class TransWarpClient (TransWarpBase):
         self.engine.write_unblock (client.cli_conn, buf, __write_ok, self._on_err, cb_args=(client,))
 
     def _on_client_readable (self, cli_conn, client):
-        print "client %s client readable" % (client.client_id)
+#        self.logger.debug ("client %s client readable" % (client.client_id))
         self.stream_to_fix (cli_conn, client.r_conn, client)
 
 
     def _on_server_readable (self, r_conn, client):
-        print "client %s remote readable" % (client.client_id)
+#        self.logger.debug ("client %s remote readable" % (client.client_id))
         self.fix_to_stream (r_conn, client.cli_conn, client)
 
 
@@ -93,7 +93,7 @@ class TransWarpClient (TransWarpBase):
         buf = auth_data.serialize ()
         buf = proto.pack_head (len (buf)) + buf
         client.r_conn = r_conn
-        client.state = proto.ClientState.CONNECTED
+        client.cli_state = proto.ClientState.CONNECTED
 
         def __on_remote_respond (r_conn, *args):
             resp = None
