@@ -56,18 +56,16 @@ class Connection (object):
     stack_count = 0
     error = None
 
-    def peer (self):
-        try:
-            return self.sock.getpeername ()
-        except socket.error:
-            pass
-    peer = property (peer)
-
     def __init__ (self, sock, readable_cb=None, readable_cb_args=(), idle_timeout_cb=None):
         """ idle_timeout_cb will be callbacked with (engein, conn, *readable_cb_args)
         """
         self.sock = sock
         self.fd = self.sock.fileno()
+        try:
+            self.peer = self.sock.getpeername ()
+        except socket.error:
+            pass
+
         if callable (readable_cb):
             self.readable_cb = readable_cb
             self.readable_cb_args = readable_cb_args or ()
@@ -643,14 +641,14 @@ class TCPSocketEngine (SocketEngine):
                     self._exec_callback (err_cb, (ConnectNonblockError (res_code, err_msg),) +cb_args, stack)
             return
         if res == 0:
-            self._callback_indirect (ok_cb, (sock, ) + cb_args, stack)
+            self._exec_callback (ok_cb, (sock, ) + cb_args, stack)
         elif res == errno.EINPROGRESS:
             self._poll.register (fd, 'w', __on_connected, (sock, ))
         else:
             sock.close ()
             err_msg = errno.errorcode[res]
             if callable(err_cb):
-                self._callback_indirect (err_cb, (ConnectNonblockError (res, err_msg), ) + cb_args, stack)
+                self._exec_callback (err_cb, (ConnectNonblockError (res, err_msg), ) + cb_args, stack)
             return False
 
 
