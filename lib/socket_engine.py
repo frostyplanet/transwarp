@@ -79,7 +79,6 @@ class Connection (object):
             self.status_rd = ConnState.CLOSED
             if self.sock:
                 self.sock.close ()
-                self.sock = None
 
     def is_open (self):
         return self.status_rd != ConnState.CLOSED
@@ -227,12 +226,15 @@ class SocketEngine (object):
 
     def _close_conn (self, conn):
         fd = conn.fd
-        self._poll.unregister (fd, 'all')
         try:
-            del self._sock_dict[fd]
-        except KeyError:
-            pass
-        conn.close ()
+            self._poll.unregister (fd, 'all')
+            try:
+                del self._sock_dict[fd]
+            except KeyError:
+                pass
+            conn.close ()
+        except Exception, e:
+            self.log_exception(e)
 
     def _accept_conn (self, sock, readable_cb, readable_cb_args, idle_timeout_cb, new_conn_cb):
         """ socket will set FD_CLOEXEC upon accepted """
@@ -252,8 +254,6 @@ class SocketEngine (object):
                     csock.settimeout (self._rw_timeout or None)
                 else:
                     csock.setblocking (0)
-
-
                 if callable (new_conn_cb):
                     csock = new_conn_cb (csock, *readable_cb_args)
                     if not csock:
