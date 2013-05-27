@@ -218,13 +218,13 @@ class TransWarpClient (TransWarpBase):
             pw_len = ord(buf[-1])
             if pw_len == 0:
                 return __on_pw_read (conn, user)
-            elif pw_len > 255:
+            elif pw_len < 0:
                 return self.engine.close_conn (conn)
             return self.engine.read_unblock (conn, pw_len, __on_pw_read, cb_args=(user,))
         def __on_user_len (conn):
             buf = conn.get_readbuf ()
             ver, user_len = buf[0], ord(buf[1])
-            if user_len > 255:
+            if user_len < 0:
                 return self.engine.close_conn (conn)
             return self.engine.read_unblock (conn, user_len + 1, __on_user_read)
         def __on_user_auth (conn):
