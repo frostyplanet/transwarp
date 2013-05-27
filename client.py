@@ -25,7 +25,7 @@ class TransWarpClient (TransWarpBase):
         self.logger = Log ("client", config=config)
         self.engine.set_logger (self.logger)
         self.sock5_addr = config.SOCK5_ADDR
-        self._sock5_users = config.SOCK5_USERS or {}
+        self._sock5_users = 'SOCK5_USERS' in dir(config) and config.SOCK5_USERS or {}
         ip = self.sock5_addr[0]
         arr = map (lambda x:chr(int(x)), ip.split ("."))
         self._sock5_server_id = struct.pack ("!4cH", arr[0], arr[1], arr[2], arr[3], self.sock5_addr[1])
