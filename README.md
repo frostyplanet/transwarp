@@ -5,7 +5,7 @@ a socks tunnel agent
 
 browser --[sock5]--> client --[tunnel]--> server -> website
 
-Sock5 interface authentication is not implemented yet.
+Sock5 interface authentication supports no_auth and basic (user/password)
 
 From client to server use key to authenticate and do encryption with AES. 
 

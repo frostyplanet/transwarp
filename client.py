@@ -16,7 +16,6 @@ import signal
 from mod.common import TransWarpBase
 
 VER = "\x05"
-METHOD = "\x00"
 
 
 class TransWarpClient (TransWarpBase):
@@ -26,6 +25,7 @@ class TransWarpClient (TransWarpBase):
         self.logger = Log ("client", config=config)
         self.engine.set_logger (self.logger)
         self.sock5_addr = config.SOCK5_ADDR
+        self._sock5_users = config.SOCK5_USERS or {}
         ip = self.sock5_addr[0]
         arr = map (lambda x:chr(int(x)), ip.split ("."))
         self._sock5_server_id = struct.pack ("!4cH", arr[0], arr[1], arr[2], arr[3], self.sock5_addr[1])
@@ -48,6 +48,7 @@ class TransWarpClient (TransWarpBase):
 
 
     def _send_sock5_unsupport (self, conn):
+        self.logger.error ("peer %s not supported" % (str(conn.peer)))
         buf = "%s%s\x00\x01%s" % (VER, "\x07", self._sock5_server_id)
         def __write_ok (conn):
             self.engine.close_conn (conn)
@@ -146,11 +147,14 @@ class TransWarpClient (TransWarpBase):
         self.engine.connect_unblock (self.server_addr, self._on_server_connected, __on_connect_error, cb_args=(client, ))
 
     def _sock5_handshake (self, sock):
+        print "handshake"
         conn = Connection (sock)
         def __on_ipv6_read (conn):
+            print "ipv6"
             self._send_sock5_unsupport (conn)
             return
         def __on_domain_read (conn):
+            print "domain"
             buf = conn.get_readbuf ()
             domain_len = len(buf) - 2
             try:
@@ -162,11 +166,13 @@ class TransWarpClient (TransWarpBase):
             return
         def __on_domain_len (conn):
             domain_len = ord (conn.get_readbuf ())
+            print "len", domain_len
             if domain_len > 0:
                 return self.engine.read_unblock (conn, domain_len + 2, __on_domain_read)
             else:
                 self.engine.close_conn (conn)
         def __on_ipv4_read (conn):
+            print "ipv4"
             buf = conn.get_readbuf ()
             try:
                 dst_addr = ".".join (map (lambda i: str(ord(i)), buf[0:4]))
@@ -175,22 +181,68 @@ class TransWarpClient (TransWarpBase):
             except Exception, e:
                 self.logger.exception (e)
                 self.engine.close_conn (conn)
-        def __on_auth_type_read (conn):
-            buf = conn.get_readbuf ()
-            ver, cmd, rsv, atyp = buf[0], buf[1], buf[2], buf[3]
-            if atyp == "\x01": # IPV4
+            return
+        def __sock5_connect (conn, atyp):
+            if atyp == 1: # IPV4
                 return self.engine.read_unblock (conn, 6, __on_ipv4_read)
-            elif atyp == "\x03": #DOMAIN 
+            elif atyp == 3: #DOMAIN 
                 return self.engine.read_unblock (conn, 1, __on_domain_len)
-            elif atyp == "\x04": # IPV6
+            elif atyp == 4: # IPV6
                 return self.engine.read_unblock (conn, 8, __on_ipv6_read)
             else:
+                self.logger.exception ("unsupported sock5 atyp %d" % (atyp))
                 self._send_sock5_unsupport (conn)
-        def __cb2 (conn):
-            return self.engine.read_unblock (conn, 4, __on_auth_type_read)
-        def __cb1 (conn):
-            return self.engine.write_unblock (conn, VER + METHOD, __cb2)
-        self.engine.read_unblock (conn, 3, __cb1) # on error automatic close connection
+        def __on_socks_request (conn):
+            buf = conn.get_readbuf ()
+            ver, cmd, rsv, atyp = buf[0], ord(buf[1]), buf[2], ord(buf[3])
+            if cmd == 1: # connect
+                return __sock5_connect (conn, atyp)
+            else:
+                self.logger.exception ("unsupported sock5 cmd %d" % (cmd))
+                self._send_sock5_unsupport (conn)
+            return
+        def __on_socks_no_auth (conn):
+#            print "no auth"
+            return self.engine.read_unblock (conn, 4, __on_socks_request)
+        def __on_pw_read (conn, user):
+            passwd = conn.get_readbuf ()
+            _passwd = self._sock5_users.get (user)
+            print "user auth", user, passwd
+            if not self._sock5_users or passwd == _passwd:
+                return self.engine.write_unblock (conn, "\x01" + "\x00", __on_socks_no_auth)
+            else:
+                return self.engine.write_unblock (conn, "\x01" + "\x01", self.engine.close_conn)
+        def __on_user_read (conn):
+            buf = conn.get_readbuf ()
+            user = buf[0:-1]
+            pw_len = ord(buf[-1])
+            if pw_len == 0:
+                return __on_pw_read (conn, user)
+            elif pw_len > 255:
+                return self.engine.close_conn (conn)
+            return self.engine.read_unblock (conn, pw_len, __on_pw_read, cb_args=(user,))
+        def __on_user_len (conn):
+            buf = conn.get_readbuf ()
+            ver, user_len = buf[0], ord(buf[1])
+            if user_len > 255:
+                return self.engine.close_conn (conn)
+            return self.engine.read_unblock (conn, user_len + 1, __on_user_read)
+        def __on_user_auth (conn):
+            return self.engine.read_unblock (conn, 2, __on_user_len)
+        def __on_select_methods (conn):
+            buf = conn.get_readbuf ()
+            if '\x00' in buf and not self._sock5_users:
+                return self.engine.write_unblock (conn, VER + '\x00', __on_socks_no_auth)
+            if '\x02' in buf:
+                return self.engine.write_unblock (conn, VER + '\x02', __on_user_auth)
+            return self._send_sock5_unsupport (conn)
+        def __cb0 (conn):
+            buf = conn.get_readbuf ()
+            ver, nmethods = buf[0], ord(buf[1])
+            if ver != VER:
+                return self._send_sock5_unsupport (conn)
+            return self.engine.read_unblock (conn, nmethods, __on_select_methods)
+        self.engine.read_unblock (conn, 2, __cb0) # on error automatic close connection
 
 stop_signal_flag = False
 
