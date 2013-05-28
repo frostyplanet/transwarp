@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding:utf-8
 
-from lib.socket_engine import TCPSocketEngine, Connection
+from lib.socket_engine import TCPSocketEngine, Connection, PeerCloseError
 import lib.io_poll as io_poll
 from lib.log import Log
 import mod.proto as proto
@@ -29,7 +29,10 @@ class TransWarpBase (object):
             if callable (head_err_cb):
                 head_err_cb (conn)
             return
-        self.engine.read_unblock (conn, data_len, msg_cb, head_err_cb)
+        if data_len > 0:
+            self.engine.read_unblock (conn, data_len, msg_cb, head_err_cb)
+        else:
+            self.engine.watch_conn (conn)
 
     def _check_client_state (self, client):
         if client.cli_state == proto.ClientState.CONNECTED and client.r_state == proto.ClientState.CONNECTED:
@@ -72,7 +75,10 @@ class TransWarpBase (object):
     def stream_to_fix (self, stream_conn, fix_conn, client):
 
         def __send_and_close (client, data):
-            self.logger.error ("client %s: peer close" % (client.client_id))
+            if stream_conn.error is None:
+                self.logger.error ("client %s: peer close" % (client.client_id))
+            else:
+                self.logger.error ("client %s: error %s" % (client.client_id, str(stream_conn.error)))
             if not data:
                 return self.close_client (client)
             self.engine.close_conn (stream_conn)
@@ -89,37 +95,31 @@ class TransWarpBase (object):
                 return
             data = client.crypter_w.encrypt (data)
             data = proto.pack_head (len (data)) + data
-            self.engine.remove_conn (stream_conn)
+#            self.engine.remove_conn (stream_conn)
             return self.engine.write_unblock (fix_conn, data, __write_ok, self._on_err, cb_args=(client, ))
-            
-        buf = ""
-        _buf = ""
-        try:
-            while True:
-                try:
-                    _buf = stream_conn.sock.recv (16 * 1024)
-                    if len(_buf) == 0:
-                        return __send_and_close (client, buf)
-                    buf += _buf
-                except socket.error, e:
-                    if e.args[0] == errno.EAGAIN:
-                        break
-                    elif e.args[0] == errno.EINTR:
-                        continue
-                    else:
-                        self.logger.error ("client %s: %s" % (client.client_id, e))
-                        self.close_client(client)
-                        return
-            __send_and_watch (client, buf)
-        except Exception, e:
-            self.logger.exception (e)
-            self.close_client (client)
+
+        buf, is_eof = self.engine.read_avail (stream_conn, 8192)
+        if buf:
+            if is_eof or stream_conn.error is not None:
+                __send_and_close (client, buf)
+                return
+            else:
+                __send_and_watch (client, buf)
+                return
+        else:
+            if is_eof or stream_conn is not None:
+                if stream_conn.error is not None:
+                    self.logger.error ("client %s: %s" % (client.client_id, str(stream_conn.error)))
+                self.close_client (client)
+            else:
+                self.engine.watch_conn (stream_conn)
 
 
     def fix_to_stream (self, fix_conn, stream_conn, client):
         try:
             def __head_err (fix_conn, *args):
-                self.logger.error ("client %s %s" % (client.client_id, fix_conn.error))
+                if not isinstance (fix_conn.error, PeerCloseError):
+                    self.logger.error ("client %s %s" % (client.client_id, fix_conn.error))
                 self.close_client (client)
                 return
             def __write_ok (conn, *args):
@@ -127,7 +127,7 @@ class TransWarpBase (object):
                 return
             def __on_fix_read (fix_conn, *args):
                 try:
-                    self.engine.remove_conn (fix_conn)
+#                    self.engine.remove_conn (fix_conn)
                     data = client.crypter_r.decrypt (fix_conn.get_readbuf ())
                     self.engine.write_unblock (stream_conn, data, __write_ok, self._on_err, cb_args=(client, ))
                 except Exception, e:

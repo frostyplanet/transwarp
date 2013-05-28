@@ -79,12 +79,12 @@ class TransWarpClient (TransWarpBase):
         self.engine.write_unblock (client.cli_conn, buf, __write_ok, self._on_err, cb_args=(client,))
 
     def _on_client_readable (self, cli_conn, client):
-#        self.logger.debug ("client %s client readable" % (client.client_id))
+#        print "client %s client readable" % (client.client_id)
         self.stream_to_fix (cli_conn, client.r_conn, client)
 
 
     def _on_remote_readable (self, r_conn, client):
-#        self.logger.debug ("client %s remote readable" % (client.client_id))
+#        print "client %s remote readable" % (client.client_id)
         self.fix_to_stream (r_conn, client.cli_conn, client)
 
 
@@ -147,14 +147,14 @@ class TransWarpClient (TransWarpBase):
         self.engine.connect_unblock (self.server_addr, self._on_server_connected, __on_connect_error, cb_args=(client, ))
 
     def _sock5_handshake (self, sock):
-        print "handshake"
+#        print "handshake"
         conn = Connection (sock)
         def __on_ipv6_read (conn):
-            print "ipv6"
+#            print "ipv6"
             self._send_sock5_unsupport (conn)
             return
         def __on_domain_read (conn):
-            print "domain"
+#            print "domain"
             buf = conn.get_readbuf ()
             domain_len = len(buf) - 2
             try:
@@ -166,13 +166,13 @@ class TransWarpClient (TransWarpBase):
             return
         def __on_domain_len (conn):
             domain_len = ord (conn.get_readbuf ())
-            print "len", domain_len
+#            print "len", domain_len
             if domain_len > 0:
                 return self.engine.read_unblock (conn, domain_len + 2, __on_domain_read)
             else:
                 self.engine.close_conn (conn)
         def __on_ipv4_read (conn):
-            print "ipv4"
+#            print "ipv4"
             buf = conn.get_readbuf ()
             try:
                 dst_addr = ".".join (map (lambda i: str(ord(i)), buf[0:4]))
@@ -207,7 +207,7 @@ class TransWarpClient (TransWarpBase):
         def __on_pw_read (conn, user):
             passwd = conn.get_readbuf ()
             _passwd = self._sock5_users.get (user)
-            print "user auth", user, passwd
+#            print "user auth", user, passwd
             if not self._sock5_users or passwd == _passwd:
                 return self.engine.write_unblock (conn, "\x01" + "\x00", __on_socks_no_auth)
             else:

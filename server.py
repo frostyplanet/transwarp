@@ -55,7 +55,7 @@ class TransWarpServer (TransWarpBase):
             client.cli_state = proto.ClientState.CONNECTED
             self._check_client_state (client)
             return
-        self.engine.write_unblock (client.cli_conn, proto.pack_head (len (buf)) + buf, _write_ok, self._on_err)
+        self.engine.write_unblock (client.cli_conn, proto.pack_head (len (buf)) + buf, _write_ok, self._on_err, cb_args=(client, ))
 
     def _check_client_state (self, client):
         if client.cli_state == proto.ClientState.CONNECTED and client.r_state == proto.ClientState.CONNECTED:
@@ -67,12 +67,12 @@ class TransWarpServer (TransWarpBase):
 
 
     def _on_remote_readable (self, r_conn, client):
-#        self.logger.debug ("remote %s readable" % (client.client_id))
+        print "remote %s readable" % (client.client_id)
         self.stream_to_fix (r_conn, client.cli_conn, client)
 
 
     def _on_client_readable (self, cli_conn, client):
-        self.logger.debug ("client %s readable" % (client.client_id))
+        print "client %s readable" % (client.client_id)
         self.fix_to_stream (cli_conn, client.r_conn, client)
 
     def _on_remote_conn (self, sock, client):
