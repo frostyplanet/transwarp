@@ -23,10 +23,19 @@ server-side :
 
 in config_server.py , add your client keys, configure your server port.
 
-python server.py start 
+  python server.py start 
 
 client-side:  
 
 in config_client.py , configure your address and port to listen as a sock5 server.
 
-python client.py start
+  python client.py start
+
+for firefox,  use extension "autoproxy" to setup socks proxy.
+
+for linux commandline programes which without proxy support, you can use "proxychrains" to wrap around them.
+
+
+Related Project
+---------------
+https://github.com/frostyplanet/python-socket-engine
